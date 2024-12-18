@@ -1,0 +1,509 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r include=FALSE}
+library(factoextra)
+library(ggfortify)
+library(DESeq2)
+library(dplyr)
+library(pls)
+library(ggpubr)
+tissueSourceSite <- read.delim("~/Scaricati/tissueSourceSite.tsv", header = TRUE, sep = "\t")
+load("/mnt/sig_marco/data_github/CNS_dataset.RData")
+```
+
+#PCA drew
+```{r}
+codici<-substr(rownames(drew), 6,7)
+
+a1<- drew %>%
+  mutate(TSS_Code = factor(codici, levels = unique(codici)),
+         sample = rownames(drew))
+
+tissueSourceSite$TSS.Code <- factor(tissueSourceSite$TSS.Code)
+tissueSourceSite<-tissueSourceSite[order(tissueSourceSite$TSS.Code),]
+colnames(tissueSourceSite)[1]<-"TSS_Code"
+
+tmp<-merge(tissueSourceSite, a1, by = "TSS_Code")
+merge_df<-tmp[,-c(3:4)]
+rownames(merge_df)<-merge_df$sample
+colnames(merge_df)[2] <- "source_site"
+merge_df<-merge_df[, -c(1,21)]
+
+pca_result<-prcomp(merge_df[, -c(1:2)], scale = TRUE)
+summary(pca_result)
+fviz_eig(pca_result)
+fviz_pca_var(pca_result, 
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df$source_site 
+
+ggplot(pca_data, aes(x = PC1, y = PC2, color = source_site)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.text = element_blank(),
+        legend.title = element_text("source_site"))
+
+pca_data$cancer_type <-  merge_df$cancer_type
+pca_data %>%
+ggplot(aes(x = PC1, y = PC2, color = cancer_type)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+
+pca_result<-prcomp(merge_df[, -c(1:2)], scale = FALSE)
+summary(pca_result)
+fviz_eig(pca_result)
+fviz_pca_var(pca_result, 
+             col.var = "contrib", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+#regression 
+```{r}
+pca_result<-prcomp(merge_df[, -c(1:2)], scale = TRUE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df$source_site
+pca_data$cancer_type <-  merge_df$cancer_type
+
+# LM for the first 5 PC
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site + cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared TSS") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared Tumor type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+#PCA for BCR
+```{r}
+merge_df<-tmp[,-3]
+rownames(merge_df)<-merge_df$sample
+colnames(merge_df)[2] <- "source_site"
+merge_df<-merge_df[, -c(1,22)]
+
+pca_result<-prcomp(merge_df[, -c(1:3)], scale = TRUE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df$source_site
+pca_data$BCR <-  merge_df$BCR 
+pca_data$cancer_type<-merge_df$cancer_type
+
+pca_data %>%
+ggplot(aes(x = PC1, y = PC2, color = BCR)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+```
+
+#PCA steele
+```{r}
+codici<-substr(rownames(steele), 6,7)
+
+a1<- steele %>%
+  mutate(TSS_Code = factor(codici, levels = unique(codici)),
+         sample = rownames(steele))
+
+tmp<-merge(tissueSourceSite, a1, by = "TSS_Code")
+merge_df1<-tmp[,-c(3:4)]
+rownames(merge_df1)<-merge_df1$sample
+colnames(merge_df1)[2] <- "source_site"
+merge_df1<-merge_df1[, -c(1,25)]
+
+pca_result<-prcomp(merge_df1[, -c(1:2)], scale = TRUE)
+summary(pca_result)
+fviz_eig(pca_result)
+fviz_pca_var(pca_result, 
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df1$source_site 
+
+ggplot(pca_data, aes(x = PC1, y = PC2, color = source_site)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.text = element_blank(),
+        legend.title = element_text("source_site"))
+
+pca_data$cancer_type <-  merge_df1$cancer_type
+pca_data %>%
+ggplot(aes(x = PC1, y = PC2, color = cancer_type)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+
+pca_result<-prcomp(merge_df1[, -c(1:2)], scale = FALSE)
+summary(pca_result)
+fviz_eig(pca_result)
+fviz_pca_var(pca_result, 
+             col.var = "contrib", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+#regression 
+```{r}
+pca_result<-prcomp(merge_df1[, -c(1:2)], scale = TRUE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df1$source_site
+pca_data$cancer_type <-  merge_df1$cancer_type
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site + cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  ggtitle("source_site") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  ggtitle("cancer_type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+#PCA for BCR
+```{r}
+merge_df<-tmp[,-3]
+rownames(merge_df)<-merge_df$sample
+colnames(merge_df)[2] <- "source_site"
+merge_df<-merge_df[, -c(1,26)]
+
+pca_result<-prcomp(merge_df[, -c(1:3)], scale = TRUE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df$source_site
+pca_data$BCR <-  merge_df$BCR 
+pca_data$cancer_type<-merge_df$cancer_type
+
+pca_data %>%
+ggplot(aes(x = PC1, y = PC2, color = BCR)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+```
+#PCA tao
+```{r}
+codici<-substr(rownames(tao), 6,7)
+
+a1<- tao %>%
+  mutate(TSS_Code = factor(codici, levels = unique(codici)),
+         sample = rownames(tao))
+
+tmp<-merge(tissueSourceSite, a1, by = "TSS_Code")
+merge_df2<-tmp[,-c(3:4)]
+rownames(merge_df2)<-merge_df2$sample
+colnames(merge_df2)[2] <- "source_site"
+merge_df2<-merge_df2[, -c(1,24)]
+
+pca_result<-prcomp(merge_df2[, -c(1:2)], scale = TRUE)
+summary(pca_result)
+fviz_eig(pca_result)
+fviz_pca_var(pca_result, 
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df2$source_site
+
+ggplot(pca_data, aes(x = PC1, y = PC2, color = source_site)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.text = element_blank(),
+        legend.title = element_text("source_site"))
+
+pca_data$cancer_type <-  merge_df2$cancer_type
+pca_data %>%
+ggplot(aes(x = PC1, y = PC2, color = cancer_type)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+
+pca_result<-prcomp(merge_df2[, -c(1:2)], scale = FALSE)
+summary(pca_result)
+fviz_eig(pca_result)
+fviz_pca_var(pca_result, 
+             col.var = "contrib", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+#regression 
+```{r}
+pca_result<-prcomp(merge_df2[, -c(1:2)], scale = TRUE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df2$source_site
+pca_data$cancer_type <-  merge_df2$cancer_type
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site + cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  ggtitle("source_site") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+
+ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "PC", y = "Value", fill = "Variable") +
+  ylab("R_squared") +
+  ggtitle("cancer_type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+#PCA for BCR
+```{r}
+merge_df<-tmp[,-3]
+rownames(merge_df)<-merge_df$sample
+colnames(merge_df)[2] <- "source_site"
+merge_df<-merge_df[, -c(1,25)]
+
+pca_result<-prcomp(merge_df[, -c(1:3)], scale = TRUE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$source_site <-  merge_df$source_site
+pca_data$BCR <-  merge_df$BCR 
+pca_data$cancer_type<-merge_df$cancer_type
+
+pca_data %>%
+ggplot(aes(x = PC1, y = PC2, color = BCR)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+```
+## final plot 
+```{r}
+data<-list(
+  Drew = drew,
+  Steele = steele,
+  Tao = tao
+)
+regression_feature_selection <- function(data_sig) {
+  codici<-substr(rownames(data_sig), 6,7)
+  flag<- data_sig %>%
+    mutate(TSS_Code = factor(codici, levels = unique(codici)),
+         sample = rownames(data_sig))
+  tmp<-merge(tissueSourceSite, flag, by = "TSS_Code")
+  merge_df<-tmp[,-c(3:4)]
+  rownames(merge_df)<-merge_df$sample
+  colnames(merge_df)[2] <- "source_site"
+  merge_df<-merge_df[, -c(1,length(merge_df))]
+  return(merge_df)
+}
+
+df_regresion<-list()
+for (i in seq_along(data)) {
+  df_regresion[[names(data[i])]]<- regression_feature_selection(data[[i]])
+}
+
+
+plot_list <- list()
+for (i in seq_along(data)) {
+  pca_result<-prcomp(data[[i]][, -1], scale = FALSE)
+  plot_list[[i]]<-fviz_pca_var(pca_result, 
+                col.var = "contrib", 
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+  
+  pca_result_reg<-prcomp(df_regresion[[i]][, -c(1:2)], scale = TRUE)
+  pca_data <- as.data.frame(pca_result_reg$x[, 1:5])
+  pca_data$source_site <-  df_regresion[[i]]$source_site
+  pca_data$cancer_type <-  df_regresion[[i]]$cancer_type
+  
+  model_metrics <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ source_site, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+  
+  model_metrics1 <- lapply(1:5, function(i) {
+  model <- lm(get(paste0("PC", i)) ~ cancer_type, data = pca_data)
+  summary <- summary(model)
+  data.frame(
+    PC = paste0("PC", i),
+    R_squared = summary$r.squared,
+    F_statistic = summary$fstatistic[1],
+    RSE = summary$sigma
+  )
+}) %>%
+  bind_rows()
+  
+  plot_list[[i+3]]<-ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(y = "Value", fill = "Variable") +
+    ylab("R_squared TSS") +
+    xlab(NULL) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(limits = c(0, .35))
+  
+  plot_list[[i+6]]<-ggplot(model_metrics1, aes(x = PC, y = R_squared)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "PC", y = "Value", fill = "Variable") +
+    ylab("R_squared Tumor type") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(limits = c(0, .35))
+}
+
+ggarrange(plotlist = plot_list, heights = c(2,1, 1), labels = "AUTO", vjust = 1.5)
+```
+
