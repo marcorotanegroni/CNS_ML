@@ -1,0 +1,500 @@
+---
+title: "Machine learning analyses"
+output: html_notebook
+---
+
+# Scope
+
+This notebook documents the models used to predict continuous copy number
+signature activities and signature-derived cluster membership. The
+preprocessing scripts used to create the final model matrices are documented
+in `00_data_preprocessing.Rmd`. The analyses start from the final training and
+test objects.
+Model implementation followed the recommended workflows provided
+by the `caret` and Flexynesis packages.
+
+## Target signatures
+
+| Compendium | Signatures |
+| --- | --- |
+| Drew | CX1, CX2, CX3, CX5 |
+| Steele | CN1, CN2, CN9, CN17 |
+| Tao | Sig1, Sig2, Sig5, Sig7 |
+
+The same modeling procedure was repeated for each target signature. The
+individual scripts differed mainly in the loaded input file, target column,
+saved object name, and output path.
+
+The training blocks are retained as executable templates but are not evaluated
+when the notebook is rendered because the serialized historical model objects
+are not distributed. After loading a matrix from `final_matrices.RData` and
+creating the stratified split documented in `00_data_preprocessing.Rmd`, users
+can run the relevant block for any target signature.
+
+# R packages
+```{r}
+library(caret)
+library(kernlab)
+library(xgboost)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(stringr)
+```
+
+## Lasso and Ridge example for CX1
+```{r, eval=FALSE}
+lambda1 <- seq(0.0001, 0.01, length = 100)
+lambda2<-seq(0,2,length=100)
+
+library(caret)
+set.seed(1234)
+glmnet_lasso<- train(
+  ordi_train[,-c(1,2)], ordi_train$CX1, method = "glmnet",
+  trControl = trainControl("cv", number = 10, savePredictions = TRUE),
+  tuneGrid = expand.grid(alpha = 1, lambda = lambda1)
+)
+
+##glmnet
+set.seed(1234)
+glmnet_ridge <- train(
+  ordi_train[,-c(1,2)], ordi_train$CX1, method = "glmnet",
+  trControl = trainControl("cv", number = 10, savePredictions = TRUE),
+  tuneGrid = expand.grid(alpha = 0, lambda = lambda2)
+)
+```
+
+# Support Vector Machine
+```{r, eval=FALSE}
+
+set.seed(1234)
+svm_linear_2 <- train(
+  train_data[,-c(1,2)], train_data$CX2, method = "svmLinear",
+  trControl = trainControl("cv", number = 10, savePredictions = TRUE, allowParallel = TRUE),
+  tuneGrid = expand.grid(C = c(0.000001, 0.00001, 0.00005, 0.0001, 0.001, 0.01, 1))
+)
+
+set.seed(1234)
+svm_radial_5<- train(
+  train_data[,-c(1,2)], train_data$CX5, method = "svmRadialSigma",
+  trControl = trainControl("cv", number = 10, savePredictions = TRUE, allowParallel = TRUE),
+  tuneGrid = expand.grid(C= c(4, 6, 8, 10, 12, 16), sigma =c(.088365e-05, .411635e-05, .911635e-05, 1.411635e-05, 1.908374e-05, 2.405114e-05))
+)
+```
+
+# XGBoost
+```{r, eval=FALSE}
+hyperparam_grid <- expand.grid(
+  nrounds = seq(from = 1000, to = 1500, by = 75),
+  eta = c(0.005,0.01, 0.15),
+  max_depth = c(2, 4, 6),
+  gamma = c(0),
+  colsample_bytree = c(1),
+  min_child_weight = c(3, 5),
+  subsample = c(0.75)
+)
+
+set.seed(1234)
+xgb <- train(ordi_train[,-c(1,2)], ordi_train$CX1, method = "xgbTree",
+                 trControl = trainControl("cv", number = 10, savePredictions = TRUE,  allowParallel = TRUE),
+                 tuneGrid = hyperparam_grid,
+                 verbose = TRUE)
+```
+
+# performance extraction example
+```{r, eval=FALSE}
+testX<-ordi_test[,-c(1,2)]
+predictions <- extractPrediction(
+  list(glmnet_lasso),
+  testX,
+  ordi_test$CX1
+)
+
+predictions %>% 
+  group_by(model, dataType) %>% 
+  dplyr::summarise(
+    rmse = RMSE(pred = pred, obs = obs),
+    rsq = R2(pred = pred, obs = obs)
+  )
+```
+
+# Deep learning with Flexynesis
+```{python, eval=FALSE}
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+import flexynesis
+import torch
+import numpy as np
+import seaborn as sns
+from sklearn.metrics import mean_absolute_error
+import pandas as pd
+import math
+import requests
+import tarfile
+import re
+import logging 
+import matplotlib.pyplot as plt
+import matplotlib
+from sklearn.metrics import balanced_accuracy_score, f1_score, cohen_kappa_score, classification_report
+from sklearn.metrics import mean_squared_error
+from scipy.stats import linregress
+
+def evaluate_classifier(y_true, y_pred, print_report = False):
+    # Balanced accuracy
+    balanced_acc = balanced_accuracy_score(y_true, y_pred)
+    # F1 score (macro)
+    f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+    # Cohen's Kappa
+    kappa = cohen_kappa_score(y_true, y_pred)
+    # Full classification report
+    if print_report:
+        print("\nClassification Report:")
+        report = classification_report(y_true, y_pred, zero_division=0)
+        print(report)
+    return {"balanced_acc": balanced_acc, "f1_score": f1, "kappa": kappa}
+
+def evaluate_regressor(y_true, y_pred):
+    mse = mean_squared_error(y_true, y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+    slope, intercept, r_value, p_value, std_err = linregress(y_true,y_pred)
+    r2 = r_value**2 
+    return {"mse": mse, "r2": r2, "pearson_corr": r_value, "mae": mae}
+
+def evaluate_survival(outputs, durations, events):
+    valid_indices = ~torch.isnan(durations) & ~torch.isnan(events)
+    if valid_indices.sum() > 0:
+        outputs = outputs[valid_indices]
+        events = events[valid_indices]
+        durations = durations[valid_indices]
+    # Ensure inputs are in the correct format (numpy arrays)
+    if isinstance(durations, torch.Tensor):
+        durations = durations.numpy()
+    if isinstance(events, torch.Tensor):
+        events = events.numpy()
+    if isinstance(outputs, torch.Tensor):
+        outputs = outputs.numpy()
+    
+    # Compute the c-index
+    # reverse the directionality of risk_scores to make it compatible with lifelines' assumption
+    c_index = concordance_index(durations, -outputs, events)
+    return {'cindex': c_index}
+
+
+def evaluate_wrapper(method, y_pred_dict, dataset, surv_event_var = None, surv_time_var = None):
+    metrics_list = []
+    for var in y_pred_dict.keys():
+        if dataset.variable_types[var] == 'numerical':
+            if var == surv_event_var:
+                events = dataset.ann[surv_event_var]
+                durations = dataset.ann[surv_time_var]
+                metrics = evaluate_survival(y_pred_dict[var], durations, events)
+            else:
+                ind = ~torch.isnan(dataset.ann[var])
+                metrics = evaluate_regressor(dataset.ann[var][ind], y_pred_dict[var][ind].flatten())
+        else:
+            ind = ~torch.isnan(dataset.ann[var])
+            metrics = evaluate_classifier(dataset.ann[var][ind], y_pred_dict[var][ind])
+
+        for metric, value in metrics.items():
+            metrics_list.append({
+                'method': method,
+                'var': var,
+                'variable_type': dataset.variable_types[var],
+                'metric': metric,
+                'value': value
+            })
+    # Convert the list of metrics to a DataFrame
+    return pd.DataFrame(metrics_list)
+
+
+
+torch.set_num_threads(4)
+HPO_ITER = 15
+
+data_importer = flexynesis.DataImporter(path ='imptut_folder_path', 
+                                        data_types = ['exp', 'meth', "mut"], 
+                                        log_transform=False, 
+                                        concatenate=False, 
+                                        top_percentile=75, 
+                                        min_features=1000, 
+                                        correlation_threshold=0.8, 
+                                        variance_threshold=0.5)
+train_dataset, test_dataset = data_importer.import_data() 
+
+tuner = flexynesis.HyperparameterTuning(dataset = train_dataset, 
+                                        model_class = flexynesis.DirectPred, 
+                                        target_variables = ["CX1"],
+                                        config_name = "DirectPred", 
+                                        n_iter=HPO_ITER,  plot_losses=False,
+                                        cv_splits= 10,
+                                        #device_type= "cuda",
+                                        early_stop_patience=10) 
+model, best_params = tuner.perform_tuning()
+
+print(model)
+print(best_params)
+
+y_pred_dict = model.predict(test_dataset)
+print(y_pred_dict)
+
+metrics_df = evaluate_wrapper(method = 'DirectPred', y_pred_dict=y_pred_dict, dataset = test_dataset)
+print(metrics_df)
+
+metrics_df.to_csv('../Results/name.csv', index = False)
+```
+
+# Cluster prediction
+
+The same XGBoost workflow described above was applied to predict binary cluster
+membership using the final Drew, Steele, and Tao training and test datasets.
+The outcome variable was Cluster 1 versus Cluster 2.
+
+## Performance extraction
+```{r, eval=FALSE}
+testX<-ordi_test[,-c(1,2)]
+predictions <- extractPrediction(
+  list(xgb_drew_cluster_2C),
+  testX,
+  ordi_test$cluster
+)
+
+# Split by model and dataType
+grouped_preds <- predictions %>%
+  group_split(model, dataType)
+
+# Loop over each group and apply confusionMatrix
+results <- lapply(grouped_preds, function(df) {
+  cm <- confusionMatrix(df$pred, df$obs)
+  data.frame(
+    model = unique(df$model),
+    dataType = unique(df$dataType),
+    Accuracy = cm$overall["Accuracy"],
+    Kappa = cm$overall["Kappa"],
+    F1_score = cm$byClass["F1"]
+    # You can also extract class-wise metrics if needed
+  )
+})
+
+# Combine results
+bind_rows(results)
+```
+
+# Accuracy by tumor type
+
+The following example generates Figure 8 from the test-set predictions of the
+binary cluster classifiers. Tumor-specific accuracy is shown for tumor types
+represented by at least four test samples.
+```{r, eval=FALSE}
+plot_accuracy_per_tumor <- function(grouped_preds, title_suffix = "") {
+  results <- data.frame()
+  
+  for (df in grouped_preds) {
+    mod <- unique(df$model)
+    dt <- unique(df$dataType)
+    
+    cm_total <- confusionMatrix(df$pred, df$obs)
+    acc_total <- cm_total$overall["Accuracy"]
+    n_total <- nrow(df)
+    
+    results <- rbind(results, data.frame(
+      Model = mod,
+      DataType = dt,
+      Tumor = "Overall",
+      Accuracy = acc_total,
+      Samples = n_total,
+      alpha = 1
+    ))
+    
+    for (tum in unique(df$cancer_type[!is.na(df$cancer_type)])) {
+      df_sub <- df %>% filter(cancer_type == tum)
+      n_samples <- nrow(df_sub)
+      if (n_samples >= 4) {
+        cm_tum <- confusionMatrix(df_sub$pred, df_sub$obs)
+        acc_tum <- cm_tum$overall["Accuracy"]
+        
+        results <- rbind(results, data.frame(
+          Model = mod,
+          DataType = dt,
+          Tumor = tum,
+          Accuracy = acc_tum,
+          Samples = n_samples,
+          alpha = 0.5
+        ))
+      }
+    }
+  }
+  
+  results_plot <- results %>% filter(DataType == "Test")
+  
+  results_plot$Tumor <- factor(results_plot$Tumor, levels = c(
+    "Overall",
+    results_plot %>%
+      filter(Tumor != "Overall") %>%
+      arrange(desc(Accuracy)) %>%
+      pull(Tumor)
+  ))
+  
+  base_color <- "#1f78b4"
+  
+  p <- ggplot(
+    results_plot,
+    aes(x = Tumor, y = Accuracy, fill = base_color, alpha = alpha)
+  ) +
+    geom_bar(stat = "identity") +
+    scale_fill_identity() +
+    scale_alpha_identity() +
+    labs(
+      x = NULL,
+      y = "Accuracy"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+}
+```
+
+# extraction example for drews
+```{r, eval=FALSE}
+load("model.RData")
+
+testX <- ordi_test[,-c(1,2)]
+predictions_drew <- extractPrediction(
+  list(model),
+  testX,
+  ordi_test$cluster
+)
+
+predictions_drew$cancer_type <- NA
+test_idx <- which(predictions_drew$dataType == "Test")
+if(length(test_idx) == nrow(ordi_test)) {
+  predictions_drew$cancer_type[test_idx] <- ordi_test$cancer_type
+} else {
+  stop("DREWs: Lunghezza non corrisponde!")
+}
+
+grouped_preds_drew <- predictions_drew %>%
+  group_split(model, dataType)
+drew_acc<-plot_accuracy_per_tumor(grouped_preds_drew, "(Drews)")
+```
+
+## Test sample counts
+```{r, eval=FALSE}
+get_counts <- function(preds, model_name) {
+  test_idx <- which(preds$dataType == "Test")
+  tumors <- preds$cancer_type[test_idx]
+  counts <- as.data.frame(table(tumors))
+  colnames(counts) <- c("Tumor", "Samples")
+  counts$Model <- model_name
+  counts
+}
+
+counts_drew <- get_counts(predictions_drew, "Drews")
+counts_steele <- get_counts(predictions_steele, "Steele")
+counts_tao <- get_counts(predictions_tao, "Tao")
+
+counts_all <- bind_rows(counts_drew, counts_steele, counts_tao)
+
+mean_counts <- counts_all %>%
+  group_by(Tumor) %>%
+  summarise(mean_samples = mean(Samples)) %>%
+  arrange(desc(mean_samples))
+
+counts_all$Tumor <- factor(
+  counts_all$Tumor,
+  levels = rev(mean_counts$Tumor)
+)
+
+a <- ggplot(
+  counts_all,
+  aes(x = Samples, y = Tumor, fill = Model, alpha = 0.9)
+) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ Model, ncol = 3) +
+  labs(
+    x = "n° samples",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold"),
+    axis.text.y = element_text(size = 8)
+  ) +
+  scale_fill_manual(values = c(
+    "Drew" = "#1f78b4",
+    "Steele" = "#33a02c",
+    "Tao" = "#e31a1c"
+  )) +
+  guides(alpha = "none")
+```
+
+## Figure 8
+```{r, eval=FALSE}
+list_accuracy<-list(drew_acc, steele_acc, tao_acc, a)
+ggarrange(plotlist = list_accuracy, labels = "auto")
+```
+
+# Figure 9, panel A
+```{r}
+load("../data/processed/list_varImp_class_80perc.RData")
+
+aggregate_varImp <- function(results) {
+  combined_df <- data.frame()
+  
+  for (signature in names(results)) {
+    model_results <- results[[signature]]$top_var_metric
+    for (model_nm in names(model_results)) {
+      df <- as.data.frame(model_results[[model_nm]])
+      df$signature <- signature
+      df$class <- stringr::str_extract(model_nm, "class_[0-9]+")
+      combined_df <- rbind(combined_df, df)
+    }
+  }
+  
+  names(combined_df)[1] <- "omic"
+  combined_df$class <- factor(
+    combined_df$class,
+    levels = c("class_2", "class_4")
+  )
+  combined_df %>%
+    group_by(omic, signature, class) %>%
+    summarise(total_value = sum(Freq), .groups = "drop") %>%
+    mutate(
+      omic = factor(
+        omic,
+        levels = c("clin", "exp", "meth", "path_mut", "mut")
+      )
+    )
+}
+
+aggregated_results <- aggregate_varImp(results)
+
+plot_omic_distribution <- function(aggregated_df) {
+  aggregated_df <- aggregated_df %>%
+    filter(class == "class_2")
+  
+  ggplot(
+    aggregated_df,
+    aes(x = signature, y = omic, size = total_value, fill = omic)
+    ) +
+    geom_point(shape = 21, color = "black") +
+    scale_size_continuous(range = c(3, 15)) +
+    labs(
+      x = "Signature",
+      y = "Omic",
+      size = "Count of Variables"
+    ) +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set1")
+}
+
+c<-plot_omic_distribution(aggregated_results)
+c
+```
+
+# Input and output files
+
+The final repository inputs for this analysis will be the processed `.RData`
+files containing the final training and test sets for each target signature and
+the three cluster classifications.

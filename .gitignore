@@ -1,0 +1,17 @@
+.DS_Store
+
+# R
+*.Rhistory
+*.Rproj.user/
+
+# Large or generated local files
+data/raw/
+data/external/
+*.zip
+*.tar.gz
+data/processed/exp_meth_post_normalization.RData
+data/processed/zenodo/*.RData
+
+# Optional: uncomment if processed RData files are too large for Git.
+# data/processed/*.RData
+# data/processed/*.rds

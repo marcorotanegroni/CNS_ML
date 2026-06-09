@@ -1,0 +1,578 @@
+---
+title: "Methylation platform harmonization and batch-effect assessment"
+output: html_notebook
+---
+
+# Scope
+
+This notebook documents how the methylation batch effect was identified and
+corrected. TCGA methylation data generated with the Illumina
+HumanMethylation27 and HumanMethylation450 platforms were harmonized, and the
+effect of BMIQ normalization was assessed using probe-design distributions and
+the LAML platform comparison shown in Supplementary Figure 6.
+
+LAML was the only tumor type for which the same 194 samples were profiled on
+both the 27K and 450K platforms. This paired setting allowed the platform
+effect to be evaluated without differences in sample composition. LAML was
+therefore reserved for this validation and was not included in the downstream
+harmonized methylation matrix.
+
+The complete normalization workflow is computationally intensive. The reduced
+checkpoint needed for Supplementary Figure 6 is included in `data/processed/`.
+
+# R packages
+
+```{r, eval=FALSE}
+library(curatedTCGAData)
+library(TCGAutils)
+library(MultiAssayExperiment)
+library(minfi)
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+library(RPMM)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(ggpubr)
+library(cowplot)
+```
+
+# TCGA methylation data
+
+```{r, eval=FALSE}
+assay_type <- c("Methylation*")
+vetS4_meth_2_1_1 <- curatedTCGAData(
+  diseaseCode = "*",
+  assays = assay_type,
+  version = "2.1.1",
+  dry.run = FALSE
+)
+primaryTumors1 <- TCGAprimaryTumors(vetS4_meth_2_1_1)
+```
+
+# Platform-specific sample preparation
+
+Outside LAML, samples measured on both platforms were retained from the 450K
+platform and removed from the corresponding 27K dataset. LAML was handled
+separately as the paired platform-control dataset.
+
+```{r, eval=FALSE}
+j <- grep(
+  "^(?!LAML).{2,5}_Methylation_methyl27-\\d{8}$",
+  names(primaryTumors1@ExperimentList@listData),
+  perl = TRUE
+)
+vet <- sub(
+  "^(.*?)_.*",
+  "\\1",
+  grep(
+    "^(?!LAML).{2,5}_Methylation_methyl27-\\d{8}$",
+    names(primaryTumors1@ExperimentList@listData),
+    value = TRUE,
+    perl = TRUE
+  )
+)
+
+meth_data_27 <- list()
+meth_data_450 <- list()
+for (i in 1:length(vet)) {
+  meth_data_27[[vet[i]]] <- as.data.frame(assay(primaryTumors1, j[i]))
+  meth_data_450[[vet[i]]] <- as.data.frame(
+    assay(primaryTumors1, (j + 1)[i])
+  )
+}
+
+campioni_comuni_piattaforme <- function(meth_data_450, meth_data_27) {
+  risultati <- list()
+  for (i in 1:length(meth_data_450)) {
+    col_comuni <- intersect(
+      substr(names(meth_data_27[[i]]), 1, 12),
+      substr(names(meth_data_450[[i]]), 1, 12)
+    )
+    risultati[[vet[i]]] <- col_comuni
+  }
+  return(risultati)
+}
+
+risultati <- campioni_comuni_piattaforme(meth_data_450, meth_data_27)
+
+rimuovi_colonne <- function(meth_data_27, risultati) {
+  for (i in 1:length(meth_data_27)) {
+    if (length(risultati[[i]]) > 0) {
+      colonne_da_rimuovere <- risultati[[i]]
+      meth_data_27[[i]] <- meth_data_27[[i]][
+        ,
+        !substr(names(meth_data_27[[i]]), 1, 12) %in% colonne_da_rimuovere
+      ]
+    }
+  }
+  return(meth_data_27)
+}
+
+meth_data_27_aggiornato <- rimuovi_colonne(meth_data_27, risultati)
+
+j <- c(
+  grep(
+    "^(?!LAML).{2,5}_Methylation_methyl450-\\d{8}$",
+    names(primaryTumors1@ExperimentList@listData),
+    perl = TRUE
+  ),
+  grep(
+    "^.{3,5}_Methylation-\\d{8}$",
+    names(primaryTumors1@ExperimentList@listData)
+  )
+)
+j <- j[order(j)]
+
+vet <- c(
+  sub(
+    "^(.*?)_.*",
+    "\\1",
+    grep(
+      "^(?!LAML).{2,5}_Methylation_methyl450-\\d{8}$",
+      names(primaryTumors1@ExperimentList@listData),
+      value = TRUE,
+      perl = TRUE
+    )
+  ),
+  sub(
+    "^(.*?)_.*",
+    "\\1",
+    grep(
+      "^.{3,5}_Methylation-\\d{8}$",
+      names(primaryTumors1@ExperimentList@listData),
+      value = TRUE
+    )
+  )
+)
+vet <- vet[order(vet)]
+
+meth_450_finale <- list()
+for (i in 1:length(vet)) {
+  meth_450_finale[[vet[i]]] <- as.data.frame(assay(primaryTumors1, j[i]))
+}
+```
+
+# Identification of the 450K probe-design bias
+
+The beta-value distributions of Infinium type-I and type-II probes were
+compared within each tumor type. Their displaced distributions identified the
+probe-design bias in the unnormalized 450K data. The resulting diagnostic
+plots are retained in `Methylation_batch_ correction_result/plot_bias/`.
+
+```{r, eval=FALSE}
+data("IlluminaHumanMethylation450kanno.ilmn12.hg19")
+probeInfo450_IlluminaI <- getAnnotation(
+  IlluminaHumanMethylation450kanno.ilmn12.hg19
+)
+probe <- as.data.frame(cbind(
+  CpG = probeInfo450_IlluminaI@listData$Name,
+  type = probeInfo450_IlluminaI@listData$Type
+))
+probe_I <- probe %>% filter(type == "I")
+probe_II <- probe %>% filter(type == "II")
+
+for (i in 1:length(vet)) {
+  tmp_I <- intersect(rownames(meth_450_finale[[i]]), probe_I$CpG)
+  tmp_II <- intersect(rownames(meth_450_finale[[i]]), probe_II$CpG)
+
+  flag <- meth_450_finale[[i]][tmp_I, , drop = FALSE]
+  flag <- as.data.frame(t(flag))
+  flag1 <- meth_450_finale[[i]][tmp_II, , drop = FALSE]
+  flag1 <- as.data.frame(t(flag1))
+
+  flag <- flag %>%
+    mutate(platform = "I") %>%
+    relocate(platform)
+  flag1 <- flag1 %>%
+    mutate(platform = "II") %>%
+    relocate(platform)
+
+  prova <- melt(
+    flag,
+    id.vars = "platform",
+    variable.name = "gene",
+    value.name = "metilazione",
+    na.rm = TRUE
+  )
+  prova1 <- melt(
+    flag1,
+    id.vars = "platform",
+    variable.name = "gene",
+    value.name = "metilazione",
+    na.rm = TRUE
+  )
+  prova2 <- rbind(prova, prova1)
+
+  a <- ggplot(prova2, aes(x = metilazione, color = platform)) +
+    geom_density(alpha = .5) +
+    ggtitle(vet[[i]])
+  a
+}
+```
+
+# BMIQ correction of 450K data
+
+The unchanged BMIQ v1.3 implementation described by Teschendorff et al. was
+used to correct the Infinium type-II probe-design bias. The implementation
+uses `RPMM` and was run independently for every sample with the parameters
+shown below.
+
+```{r, eval=FALSE}
+data_finale <- list()
+for (i in 1:length(vet)) {
+  mat <- meth_450_finale[[i]]
+  ind <- rowSums(is.na(mat)) == ncol(mat)
+  mat <- mat[!ind, ]
+
+  mat <- mat %>%
+    mutate(
+      type = case_when(
+        rownames(mat) %in% probe_I$CpG ~ "1",
+        rownames(mat) %in% probe_II$CpG ~ "2"
+      )
+    ) %>%
+    relocate(type) %>%
+    filter(!grepl("^rs", rownames(.)))
+
+  sample <- as.vector(substr(colnames(mat[-1]), 1, 12))
+  result <- list()
+  betas <- list()
+
+  for (k in 2:ncol(mat)) {
+    beta.v <- as.vector(mat[, k])
+    design.v <- as.vector(mat$type)
+    samp <- sample[k - 1]
+    result[[sample[k - 1]]] <- BMIQ(
+      beta.v,
+      design.v,
+      nL = 3,
+      doH = TRUE,
+      nfit = 50000,
+      th1.v = c(0.2, 0.75),
+      th2.v = NULL,
+      niter = 5,
+      tol = 0.001,
+      plots = FALSE,
+      sampleID = samp
+    )
+    ttt <- data.frame(
+      type = design.v,
+      beta = result[[k - 1]][[1]],
+      row.names = rownames(mat)
+    )
+    colnames(ttt)[2] <- samp
+    betas[[sample[k - 1]]] <- ttt
+  }
+
+  col_list <- lapply(betas[-1], function(x) x[, 2])
+  finale <- data.frame(
+    betas[[1]],
+    do.call(cbind, col_list),
+    row.names = rownames(betas[[1]])
+  )
+  colnames(finale) <- gsub("\\.", "-", colnames(finale))
+  data_finale[[vet[i]]] <- finale
+
+  flag <- finale %>%
+    filter(type == "1")
+  flag1 <- finale %>%
+    filter(type == "2")
+
+  prova <- melt(
+    flag,
+    id.vars = "type",
+    variable.name = "gene",
+    value.name = "metilazione",
+    na.rm = TRUE
+  )
+  prova1 <- melt(
+    flag1,
+    id.vars = "type",
+    variable.name = "gene",
+    value.name = "metilazione",
+    na.rm = TRUE
+  )
+  prova2 <- rbind(prova, prova1)
+
+  a <- ggplot(prova2, aes(x = metilazione, color = type)) +
+    geom_density(alpha = .5) +
+    ggtitle(vet[[i]]) +
+    xlab("beta value") +
+    labs(color = "probe types")
+  a
+}
+```
+
+The post-BMIQ density plots used to verify the correction are retained in
+`Methylation_batch_ correction_result/plot_BMIQ_overall/`.
+
+# Platform harmonization
+
+Probes containing SNPs at the CpG interrogation or single-base extension
+positions were removed. The 27K data were converted to the 450K representation,
+and only CpGs shared by the two platforms were retained.
+
+```{r, eval=FALSE}
+minfi_450 <- list()
+final_beta_450 <- list()
+vet <- names(data_finale)
+for (i in 1:length(data_finale)) {
+  formato_450k <- makeGenomicRatioSetFromMatrix(
+    as.matrix(data_finale[[i]]),
+    array = "IlluminaHumanMethylation450k",
+    annotation = "ilmn12.hg19"
+  )
+  gset <- addSnpInfo(formato_450k)
+  minfi_450[[vet[i]]] <- dropLociWithSnps(
+    gset,
+    snps = c("SBE", "CpG"),
+    maf = 0
+  )
+  final_beta_450[[vet[i]]] <- as.data.frame(getBeta(minfi_450[[i]]))
+  final_beta_450[[i]][, -1] <- lapply(
+    final_beta_450[[i]][, -1],
+    as.numeric
+  )
+}
+
+vet <- names(meth_data_27_aggiornato)
+converted_27 <- list()
+final_beta_27 <- list()
+for (i in 1:length(meth_data_27_aggiornato)) {
+  ind <- rowSums(is.na(meth_data_27_aggiornato[[i]])) ==
+    ncol(meth_data_27_aggiornato[[i]])
+  meth_data_27_aggiornato[[i]] <- meth_data_27_aggiornato[[i]][!ind, ]
+
+  formato_27k <- makeGenomicRatioSetFromMatrix(
+    as.matrix(meth_data_27_aggiornato[[i]]),
+    array = "IlluminaHumanMethylation27k",
+    annotation = "ilmn12.hg19"
+  )
+  converted <- convertArray(
+    formato_27k,
+    outType = "IlluminaHumanMethylation450k"
+  )
+  gset <- addSnpInfo(converted)
+  converted_27[[vet[i]]] <- dropLociWithSnps(
+    gset,
+    snps = c("SBE", "CpG"),
+    maf = 0
+  )
+  final_beta_27[[vet[i]]] <- as.data.frame(getBeta(converted_27[[i]]))
+  colnames(final_beta_27[[vet[i]]]) <- substr(
+    colnames(final_beta_27[[vet[i]]]),
+    1,
+    12
+  )
+}
+
+cpg_comuni_piattaforme <- function(meth_data_450, meth_data_27) {
+  risultati_450 <- list()
+  risultati_27 <- list()
+  cpg_comuni <- intersect(
+    rownames(meth_data_27[[1]]),
+    rownames(meth_data_450[[1]])
+  )
+  risultati_27 <- lapply(
+    meth_data_27,
+    function(x) x[cpg_comuni, , drop = FALSE]
+  )
+  risultati_450 <- lapply(
+    meth_data_450,
+    function(x) x[cpg_comuni, , drop = FALSE]
+  )
+  return(list(
+    risultati_27 = risultati_27,
+    risultati_450 = risultati_450
+  ))
+}
+
+risultati <- cpg_comuni_piattaforme(final_beta_450, final_beta_27)
+```
+
+# Gene-level methylation matrices
+
+```{r, eval=FALSE}
+risultati_450 <- risultati[[2]]
+vet <- names(risultati_450)
+genes <- data.frame(
+  mcols(primaryTumors1[["ACC_Methylation-20160128"]])
+)
+
+GS_450 <- list()
+for (i in 1:length(risultati_450)) {
+  tmp <- intersect(rownames(risultati_450[[1]]), rownames(genes))
+  flag <- genes[tmp, , drop = FALSE]
+
+  risultati_450[[i]] <- risultati_450[[i]][, -1] %>%
+    mutate(Gene_Symbol = flag$Gene_Symbol) %>%
+    relocate(Gene_Symbol)
+
+  gene_list <- list(risultati_450[[i]]$Gene_Symbol)
+  GS_450[[vet[i]]] <- aggregate(
+    risultati_450[[i]][, -1],
+    by = gene_list,
+    FUN = "mean",
+    na.rm = TRUE
+  )
+  rownames(GS_450[[i]]) <- GS_450[[i]]$Group.1
+  GS_450[[i]] <- as.data.frame(t(
+    GS_450[[i]][, 2:ncol(GS_450[[i]])]
+  ))
+}
+
+risultati_27 <- risultati[[1]]
+vet <- names(risultati_27)
+genes <- data.frame(
+  mcols(primaryTumors1[["BRCA_Methylation_methyl27-20160128"]])
+)
+
+GS_27 <- list()
+for (i in 1:length(risultati_27)) {
+  tmp <- intersect(rownames(risultati_27[[1]]), rownames(genes))
+  flag <- genes[tmp, , drop = FALSE]
+
+  risultati_27[[i]] <- risultati_27[[i]] %>%
+    mutate(Gene_Symbol = flag$Gene_Symbol) %>%
+    relocate(Gene_Symbol)
+
+  gene_list <- list(risultati_27[[i]]$Gene_Symbol)
+  GS_27[[vet[i]]] <- aggregate(
+    risultati_27[[i]][, -1],
+    by = gene_list,
+    FUN = "mean",
+    na.rm = TRUE
+  )
+  rownames(GS_27[[i]]) <- GS_27[[i]]$Group.1
+  GS_27[[i]] <- as.data.frame(t(
+    GS_27[[i]][, 2:ncol(GS_27[[i]])]
+  ))
+  rownames(GS_27[[i]]) <- substr(rownames(GS_27[[i]]), 1, 12)
+}
+
+merge_common_data <- function(HM_27, HM_450) {
+  common_names <- intersect(names(HM_450), names(HM_27))
+  merged_list <- list()
+  for (name in common_names) {
+    merged_list[[name]] <- rbind(HM_450[[name]], HM_27[[name]])
+  }
+  for (name in setdiff(names(HM_450), common_names)) {
+    merged_list[[name]] <- HM_450[[name]]
+  }
+  return(merged_list)
+}
+
+finale_meth <- merge_common_data(GS_27, GS_450)
+finale_meth <- finale_meth[order(names(finale_meth))]
+```
+
+# Supplementary Figure 6
+
+The reduced checkpoint contains only the normalized LAML 450K matrix and the
+raw LAML matrices from the 27K and 450K platforms. The PCA and beta-value
+distributions compare the same 194 samples, showing the platform effect before
+normalization and its reduction after BMIQ correction.
+
+```{r}
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(ggpubr)
+library(cowplot)
+
+load("../data/processed/methylation_batch_effect_data.RData")
+
+tmp <- intersect(colnames(laml_450_norm), colnames(gene_450_raw))
+laml_450_raw <- gene_450_raw[, tmp, drop = FALSE]
+laml_27_raw <- gene_27_raw[, tmp, drop = FALSE]
+
+flag <- laml_450_norm %>%
+  mutate(type = "450k_norm") %>%
+  relocate(type)
+
+flag1 <- laml_27_raw %>%
+  mutate(type = "27k") %>%
+  relocate(type)
+
+flag3 <- laml_450_raw %>%
+  mutate(type = "450k_raw") %>%
+  relocate(type)
+
+prova <- melt(
+  flag,
+  id.vars = "type",
+  variable.name = "gene",
+  value.name = "metilazione"
+)
+prova1 <- melt(
+  flag1,
+  id.vars = "type",
+  variable.name = "gene",
+  value.name = "metilazione"
+)
+prova2 <- melt(
+  flag3,
+  id.vars = "type",
+  variable.name = "gene",
+  value.name = "metilazione"
+)
+fin <- rbind(prova, prova1)
+fin1 <- rbind(fin, prova2)
+
+sd <- as.data.frame(apply(flag[, -1], 2, sd, na.rm = TRUE))
+sd <- sd %>%
+  mutate(type = "450k_norm") %>%
+  relocate(type)
+colnames(sd)[2] <- "devStd"
+
+sd1 <- as.data.frame(apply(flag1[, -1], 2, sd, na.rm = TRUE))
+sd1 <- sd1 %>%
+  mutate(type = "27k") %>%
+  relocate(type)
+colnames(sd1)[2] <- "devStd"
+
+sd2 <- as.data.frame(apply(flag3[, -1], 2, sd, na.rm = TRUE))
+sd2 <- sd2 %>%
+  mutate(type = "450k_raw") %>%
+  relocate(type)
+colnames(sd2)[2] <- "devStd"
+
+fina <- rbind(sd, sd1)
+fina1 <- rbind(fina, sd2)
+
+test <- rbind(flag, flag1)
+test <- rbind(test, flag3)
+test1 <- t(test[, -1])
+test1 <- na.omit(test1)
+test2 <- as.data.frame(t(test1))
+test2 <- cbind(type = test[, 1], test2)
+
+pca_result <- prcomp(test2[, -1], scale = FALSE)
+pca_data <- as.data.frame(pca_result$x[, 1:5])
+pca_data$type <- test2$type
+
+a <- ggplot(fin1, aes(x = type, y = metilazione, fill = type)) +
+  geom_boxplot() +
+  ylab("Beta value") +
+  labs(fill = "platform type")
+
+b <- ggplot(fina1, aes(x = type, y = devStd, fill = type)) +
+  geom_boxplot(outlier.alpha = .5, outlier.size = .5)
+
+c <- ggplot(pca_data, aes(x = PC1, y = PC2, fill = type)) +
+  geom_point(size = 1, shape = 21, color = "black", stroke = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal()
+
+legend <- get_legend(a + theme(legend.position = "right"))
+combined_plot <- ggarrange(
+  c + theme(legend.position = "none"),
+  a + theme(legend.position = "none"),
+  b + theme(legend.position = "none"),
+  legend,
+  labels = c("A", "B", "C"),
+  vjust = 1.5
+)
+combined_plot
+```

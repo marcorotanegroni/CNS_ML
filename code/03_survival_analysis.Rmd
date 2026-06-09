@@ -1,0 +1,259 @@
+---
+title: "Survival analyses"
+output: html_notebook
+---
+
+# Scope
+
+This notebook documents the Kaplan-Meier and stratified Cox analyses performed
+for the Drew, Steele, and Tao signature clusters. Overall survival (OS) and
+progression-free interval (PFI) were analyzed separately.
+
+The input `.RData` file contains the final `drew_f`, `steele_f`, and `tao_f`
+survival datasets, the final `mc_drew_active_4`, `mc_steele_active_4`, and
+`mc_tao_active_4` cluster objects, and the `purezza` table.
+
+# R packages and data
+
+```{r setup, message=FALSE, warning=FALSE}
+library(survival)
+library(survminer)
+library(gtsummary)
+library(dplyr)
+library(ggplot2)
+
+load("../data/processed/surv_data.RData")
+```
+
+# Kaplan-Meier analyses
+
+## Drews
+```{r}
+a<-surv_cutpoint(drew_f,
+              time = "OS.time",
+              event = "OS",
+              variables = c("CX1" , "CX2" , "CX3" , "CX5"),
+              progressbar = TRUE
+)
+res.cat <- surv_categorize(a)
+res.cat$cluster <- mc_drew_active_4$classification[rownames(res.cat)]
+
+fit <- survfit(Surv(OS.time, OS) ~ cluster, data = res.cat)
+drew_OS<-ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = FALSE, pval = TRUE, palette  = c("#72F59A", "#F57D72","#F7C073","#8672F5"), censor = FALSE)
+
+a<-surv_cutpoint(drew_f,
+              time = "PFI.time",
+              event = "PFI",
+              variables = c("CX1" , "CX2" , "CX3" , "CX5"),
+              #minprop = 0.3,
+              progressbar = TRUE
+)
+res.cat <- surv_categorize(a)
+res.cat$cluster <- mc_drew_active_4$classification[rownames(res.cat)]
+
+fit <- survfit(Surv(PFI.time, PFI) ~ cluster, data = res.cat)
+drew_PFI<-ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = FALSE, pval = TRUE, palette  = c("#72F59A", "#F57D72","#F7C073","#8672F5"), censor = FALSE)
+```
+
+## Steele
+```{r}
+a<-surv_cutpoint(steele_f,
+              time = "OS.time",
+              event = "OS",
+              variables = c("CN1" , "CN2" , "CN9" , "CN17"),
+              #minprop = 0.3,
+              progressbar = TRUE
+)
+res.cat <- surv_categorize(a)
+res.cat$cluster <- mc_steele_active_4$classification[rownames(res.cat)]
+
+fit <- survfit(Surv(OS.time, OS) ~ cluster, data = res.cat)
+steele_OS<-ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = FALSE, pval = TRUE, palette  = c("#72F59A", "#F57D72","#F7C073","#8672F5"), censor = FALSE)
+
+a<-surv_cutpoint(steele_f,
+              time = "PFI.time",
+              event = "PFI",
+              variables = c("CN1" , "CN2" , "CN9" , "CN17"),
+              #minprop = 0.3,
+              progressbar = TRUE
+)
+res.cat <- surv_categorize(a)
+res.cat$cluster <- mc_steele_active_4$classification[rownames(res.cat)]
+
+fit <- survfit(Surv(PFI.time, PFI) ~ cluster, data = res.cat)
+steele_PFI<-ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = FALSE, pval = TRUE, palette  = c("#72F59A", "#F57D72","#F7C073","#8672F5"), censor = FALSE)
+```
+
+## Tao
+```{r}
+a<-surv_cutpoint(tao_f,
+              time = "OS.time",
+              event = "OS",
+              variables = c("Sig1" , "Sig2" , "Sig5" , "Sig7"),
+              progressbar = TRUE
+)
+res.cat <- surv_categorize(a)
+res.cat$cluster <- mc_tao_active_4$classification[rownames(res.cat)]
+
+fit <- survfit(Surv(OS.time, OS) ~ cluster, data = res.cat)
+tao_OS<-ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = FALSE, pval = TRUE, palette  = c("#72F59A","#F57D72","#F7C073"), censor = FALSE)
+
+a<-surv_cutpoint(tao_f,
+              time = "PFI.time",
+              event = "PFI",
+              variables = c("Sig1" , "Sig2" , "Sig5" , "Sig7"),
+              #minprop = 0.3,
+              progressbar = TRUE
+)
+res.cat <- surv_categorize(a)
+res.cat$cluster <- mc_tao_active_4$classification[rownames(res.cat)]
+
+fit <- survfit(Surv(PFI.time, PFI) ~ cluster, data = res.cat)
+tao_PFI<-ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = FALSE, pval = TRUE, palette  = c("#72F59A","#F57D72","#F7C073"), censor = FALSE)
+```
+
+# Figure 6
+```{r}
+drew_PFI$plot <- drew_PFI$plot + labs(x = NULL, y = NULL)
+drew_OS$plot <- drew_OS$plot + labs(x = NULL) 
+
+steele_OS$plot <- steele_OS$plot + labs(x = NULL)
+steele_PFI$plot <- steele_PFI$plot + labs(y = NULL, x = NULL) 
+
+tao_PFI$plot <- tao_PFI$plot + theme(legend.position = "none")  + labs( y = NULL) 
+
+surv_list_plot<- list(drew_OS$plot, drew_PFI$plot,
+                 steele_OS$plot, steele_PFI$plot, 
+                 tao_OS$plot, tao_PFI$plot)
+```
+
+# Supplementary risk tables
+```{r}
+surv_list_plot<- list(drew_OS$table, drew_PFI$table,
+                 steele_OS$table, steele_PFI$table, 
+                 tao_OS$table, tao_PFI$table)
+```
+
+# Stratified Cox analysis
+```{r stratified-cox-function}
+run_stratified_cox <- function(df, cluster_vec, sig_vars, time_var, event_var, label) {
+
+  a <- surv_cutpoint(df, time = time_var, event = event_var,
+                     variables = sig_vars, progressbar = FALSE)
+  res.cat <- surv_categorize(a)
+  res.cat$cluster      <- cluster_vec[rownames(res.cat)]
+  res.cat$cancer_type  <- df$cancer_type
+
+  # intersect with purity table
+  tt    <- intersect(rownames(res.cat), rownames(purezza))
+  prova <- cbind(res.cat[tt, , drop = FALSE],
+                 purezza[tt,  , drop = FALSE],
+                 df[tt, 1, drop = FALSE])
+
+  cox <- coxph(
+    as.formula(paste0("Surv(", time_var, ", ", event_var,
+                      ") ~ as.factor(cluster) + age + purity + strata(cancer_type)")),
+    data = prova
+  )
+
+  tbl <- cox %>%
+    tbl_regression(exp = TRUE, include = "as.factor(cluster)") %>%
+    bold_p(t = 0.05) %>%
+    modify_caption(paste0("**", label, "** – cluster HR (stratified by tumor type)"))
+
+  list(cox = cox, tbl = tbl, data = prova)
+}
+```
+
+```{r stratified-cox-models}
+drew_strat_OS  <- run_stratified_cox(drew_f,  mc_drew_active_4$classification,
+                                     c("CX1","CX2","CX3","CX5"),
+                                     "OS.time",  "OS",  "Drew – OS")
+
+drew_strat_PFI <- run_stratified_cox(drew_f,  mc_drew_active_4$classification,
+                                     c("CX1","CX2","CX3","CX5"),
+                                     "PFI.time", "PFI", "Drew – PFI")
+
+steele_strat_OS  <- run_stratified_cox(steele_f, mc_steele_active_4$classification,
+                                       c("CN1","CN2","CN9","CN17"),
+                                       "OS.time",  "OS",  "Steele – OS")
+
+steele_strat_PFI <- run_stratified_cox(steele_f, mc_steele_active_4$classification,
+                                       c("CN1","CN2","CN9","CN17"),
+                                       "PFI.time", "PFI", "Steele – PFI")
+
+tao_strat_OS  <- run_stratified_cox(tao_f, mc_tao_active_4$classification,
+                                    c("Sig1","Sig2","Sig5","Sig7"),
+                                    "OS.time",  "OS",  "Tao – OS")
+
+tao_strat_PFI <- run_stratified_cox(tao_f, mc_tao_active_4$classification,
+                                    c("Sig1","Sig2","Sig5","Sig7"),
+                                    "PFI.time", "PFI", "Tao – PFI")
+
+drew_strat_OS$tbl
+drew_strat_PFI$tbl
+steele_strat_OS$tbl
+steele_strat_PFI$tbl
+tao_strat_OS$tbl
+tao_strat_PFI$tbl
+```
+
+# Figure 7
+```{r forest-plot-cluster2}
+# Forest plot: Cluster 2 vs Cluster 1 HR across all datasets/endpoints
+# (only significant contrast; clusters 3 and 4 not significant in any dataset)
+
+forest_data <- data.frame(
+  dataset  = c("Drews", "Drews", "Steele", "Steele", "Tao", "Tao"),
+  endpoint = c("OS", "PFI", "OS", "PFI", "OS", "PFI"),
+  HR       = c(0.64, 0.68, 0.85, 0.85, 0.92, 0.87),
+  CI_low   = c(0.54, 0.58, 0.76, 0.77, 0.84, 0.79),
+  CI_high  = c(0.77, 0.80, 0.95, 0.94, 1.01, 0.95),
+  p_val    = c("<0.001", "<0.001", "0.003", "0.002", "0.083", "0.002"),
+  sig      = c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE)
+)
+
+# Label: dataset + endpoint, ordered for display
+forest_data$label <- factor(
+  paste0(forest_data$dataset, " – ", forest_data$endpoint),
+  levels = rev(c("Drews – OS", "Drews – PFI",
+                 "Steele – OS", "Steele – PFI",
+                 "Tao – OS", "Tao – PFI"))
+)
+
+forest_data$p_label <- paste0("p = ", forest_data$p_val)
+
+ggplot(forest_data, aes(x = HR, y = label)) +
+  # reference line
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
+  # CI bars
+  geom_errorbarh(aes(xmin = CI_low, xmax = CI_high, color = sig),
+                 height = 0.25, linewidth = 0.8) +
+  # HR point
+  geom_point(aes(color = sig, shape = sig), size = 3.5) +
+  # p-value labels on right
+  geom_text(aes(x = 1.08, label = p_label), hjust = 0, size = 3.2, color = "grey30") +
+  scale_color_manual(values = c("TRUE" = "#2166AC", "FALSE" = "#999999"),
+                     labels = c("TRUE" = "p < 0.05", "FALSE" = "p ≥ 0.05")) +
+  scale_shape_manual(values = c("TRUE" = 16, "FALSE" = 1),
+                     labels = c("TRUE" = "p < 0.05", "FALSE" = "p ≥ 0.05")) +
+  # dataset separator lines
+  geom_hline(yintercept = c(2.5, 4.5), linetype = "dotted", color = "grey70") +
+  # dataset labels on left margin
+  annotate("text", x = 0.47, y = 6.3, label = "Drews",   fontface = "bold", size = 3.5, hjust = 0) +
+  annotate("text", x = 0.47, y = 4.3, label = "Steele", fontface = "bold", size = 3.5, hjust = 0) +
+  annotate("text", x = 0.47, y = 2.3, label = "Tao",    fontface = "bold", size = 3.5, hjust = 0) +
+  scale_x_continuous(limits = c(0.45, 1.20), breaks = c(0.5, 0.6, 0.7, 0.8, 0.9, 1.0)) +
+  labs(
+    title    = "Cluster 2 vs Cluster 1 – stratified Cox (adjusted for tumor type, age, purity)",
+    x        = "Hazard Ratio (95% CI)",
+    y        = NULL,
+    color    = NULL, shape = NULL
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position  = "bottom",
+    panel.grid.major.x = element_line(color = "grey90"),
+    plot.title = element_text(size = 11)
+  )
+```

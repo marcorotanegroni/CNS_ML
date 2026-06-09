@@ -1,0 +1,238 @@
+---
+title: "Copy number signature clustering"
+output: html_notebook
+---
+
+# Scope
+
+This notebook generates Figure 5 using the final signature matrices and cluster
+classifications for the Drew, Steele, and Tao compendia. Clustering is not
+recomputed in this notebook.
+
+# R packages and data
+
+```{r setup, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(pheatmap)
+library(ggpubr)
+library(usefun)
+
+load("../data/processed/clustering_data.RData")
+```
+
+The input file contains `active_drew`, `active_steele`, `active_tao`,
+`mc_drew_active_4`, `mc_steele_active_4`, and `mc_tao_active_4`.
+
+# Signature heatmaps
+```{r}
+order.ind<-order(mc_drew_active_4$classification)
+tmp<-active_drew[order.ind, -1]
+annotation_col <- data.frame(
+  Cluster = as.factor(mc_drew_active_4$classification[order.ind])
+)
+ann_colors = list(
+  Cluster = c("1"="#72F59A", "2"="#F57D72","3"="#F7C073","4"="#8672F5"))
+rownames(annotation_col) <- row.names(tmp)
+drew_pheatmap<-pheatmap(tmp,
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         annotation_row  = annotation_col,
+         annotation_colors = ann_colors,
+         cutree_rows = 4,
+         show_rownames  = FALSE,
+         angle_col = 90,
+         width = 5,
+         cellwidth = 15,
+         height = 20)
+
+order.ind<-order(mc_steele_active_4$classification)
+tmp<-active_steele[order.ind, -1]
+annotation_col <- data.frame(
+  Cluster = as.factor(mc_steele_active_4$classification[order.ind])
+)
+rownames(annotation_col) <- row.names(tmp)
+steele_pheatmap<-pheatmap(tmp,
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         annotation_row  = annotation_col,
+         annotation_colors = ann_colors,
+         cutree_rows = 4,
+         show_rownames  = FALSE,
+         width = 5,
+         angle_col = 90,
+         cellwidth = 15,
+         height = 20)
+
+order.ind<-order(mc_tao_active_4$classification)
+tmp<-active_tao[order.ind, -1]
+annotation_col <- data.frame(
+    Cluster = as.factor(mc_tao_active_4$classification[order.ind])
+)
+ann_colors = list(
+    Cluster = c("1"="#72F59A", "2"="#F57D72", "3"="#F7C073"))
+rownames(annotation_col) <- row.names(tmp)
+tao_pheatmap<-pheatmap(tmp,
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         annotation_row  = annotation_col,
+         annotation_colors = ann_colors,
+         cutree_rows = 4,
+         show_rownames  = FALSE,
+         width = 5,
+         angle_col = 90,
+         cellwidth = 15,
+         height = 20)
+```
+
+# Signature distributions across clusters
+```{r}
+ann_colors = list(
+  Cluster = c("1"="#72F59A", "2"="#F57D72","3"="#F7C073","4"="#8672F5")
+)
+
+# Function to create color scales based on cluster colors
+create_color_scale <- function(base_color, n_colors) {
+  colorRampPalette(c("white", base_color))(n_colors + 1)[-1]  # Remove white
+}
+
+# Function to create violin plot for any dataset
+create_violin_plot <- function(df_long, title = "") {
+  # Get unique variables and groups
+  unique_vars <- unique(df_long$Variable)
+  unique_groups <- unique(df_long$Group)
+  n_vars <- length(unique_vars)
+  
+  # Create color mapping for each Variable-Group combination
+  color_mapping <- c()
+  for(group in unique_groups) {
+    base_color <- ann_colors$Cluster[as.character(group)]
+    group_colors <- create_color_scale(base_color, n_vars)
+    
+    for(i in seq_along(unique_vars)) {
+      var <- unique_vars[i]
+      key <- paste0(var, ".", group)
+      color_mapping[key] <- group_colors[i]
+    }
+  }
+  
+  # Create fill variable for mapping
+  df_long$fill_var <- interaction(df_long$Variable, df_long$Group)
+  
+  # Create the plot
+  ggplot(df_long, aes(x = Variable, y = Value, fill = fill_var)) +
+    geom_violin(trim = FALSE, scale = "width", color = "black", alpha = 0.8) +
+    scale_fill_manual(values = color_mapping) +
+    stat_summary(fun = mean, geom = "point", shape = 21, fill = "black", size = 2.5) +
+    stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, color = "black") +
+    facet_wrap(~ Group, nrow = 1) +
+    coord_cartesian(ylim = c(0, 1)) +
+    theme_minimal(base_size = 14) +
+    theme(
+      legend.position = "none",
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    ) 
+}
+
+# Drew
+df_drew <- as.data.frame(active_drew[,-1])
+df_drew$Group <- mc_drew_active_4$classification
+df_long_drew <- pivot_longer(df_drew, cols = starts_with("CX"), names_to = "Variable", values_to = "Value")
+
+# Steele
+df_steele <- as.data.frame(active_steele[,-1])
+df_steele$Group <- mc_steele_active_4$classification
+df_long_steele <- pivot_longer(df_steele, cols = starts_with("CN"), names_to = "Variable", values_to = "Value")
+
+# Tao
+df_tao <- as.data.frame(active_tao[,-1])
+df_tao$Group <- mc_tao_active_4$classification
+df_long_tao <- pivot_longer(df_tao, cols = starts_with("Sig"), names_to = "Variable", values_to = "Value")
+
+drew_violin<-create_violin_plot(df_long_drew, "Drew Dataset")
+steele_violin<-create_violin_plot(df_long_steele, "Steele Dataset")
+tao_violin<-create_violin_plot(df_long_tao, "Tao Dataset")
+```
+
+# Tumor type composition
+```{r}
+# Function to create bar plot for cluster distribution by cancer type
+create_cluster_barplot <- function(active_data, mc_result, order_by_cluster = 1, n_clusters = 4) {
+  
+  # Define cluster colors
+  cluster_colors <- c("1"="#72F59A", "2"="#F57D72", "3"="#F7C073", "4"="#8672F5")
+  
+  # Create clustered data
+  mydata_cl <- active_data %>%
+    mutate(cluster = mc_result$classification)
+  
+  # Calculate aggregated data
+  agg_data <- mydata_cl %>%
+    group_by(cancer_type, cluster) %>%
+    summarise(count = n(), .groups = 'drop') %>%
+    group_by(cancer_type) %>%
+    mutate(relative_freq = count / sum(count))
+  
+  # Order levels based on specified cluster
+  order_levels <- agg_data %>%
+    filter(cluster == order_by_cluster) %>%
+    arrange(desc(relative_freq)) %>%   
+    pull(cancer_type)
+  
+  # Get all cancer types
+  all_cancers <- agg_data %>%
+    distinct(cancer_type)
+  
+  # Complete ordering (handle missing cancer types)
+  order_levels <- order_levels %>%
+    c(outersect(as.character(.), all_cancers$cancer_type))
+  
+  # Apply factor ordering
+  agg_data <- agg_data %>%
+    mutate(cancer_type = factor(cancer_type, levels = order_levels))
+  
+  # Create plot
+  ggplot(agg_data, aes(x = cancer_type, y = relative_freq)) +
+    geom_bar(aes(fill = as.factor(cluster)), stat = "identity", position = "fill") +
+    labs(y = "Relative Frequency", x = "Tumor Type", fill = "Cluster") +
+    scale_fill_manual(values = cluster_colors[1:n_clusters]) +
+    theme_minimal() +
+    theme(
+      legend.position = "none",
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+      axis.title = element_text(size = 7.5)
+    )
+}
+
+drew_barplot <- create_cluster_barplot(
+  active_data = active_drew,
+  mc_result = mc_drew_active_4,
+  order_by_cluster = 1,
+  n_clusters = 4
+)
+
+steele_barplot <- create_cluster_barplot(
+  active_data = active_steele,
+  mc_result = mc_steele_active_4,
+  order_by_cluster = 1,
+  n_clusters = 4
+)
+
+tao_barplot <- create_cluster_barplot(
+  active_data = active_tao,
+  mc_result = mc_tao_active_4,
+  order_by_cluster = 1,
+  n_clusters = 3
+)
+```
+
+# Figure 5
+```{r}
+plots_list<-list(drew_pheatmap$gtable, drew_violin, drew_barplot, 
+                 steele_pheatmap$gtable, steele_violin, steele_barplot,
+                 tao_pheatmap$gtable, tao_violin, tao_barplot)
+
+ggarrange(plotlist = plots_list, labels = "AUTO", nrow = 3, ncol = 3,
+          widths = c(0.6, 1.4, 1.2), heights = c(.9, 1, 1.1))
+```

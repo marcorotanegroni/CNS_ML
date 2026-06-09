@@ -1,0 +1,670 @@
+---
+title: "Multi-omics data preprocessing"
+output: html_notebook
+---
+
+# Scope
+
+This notebook documents the preprocessing used to obtain the complete
+multi-omics matrix `mat_purity_mut` and the stratified training and test sets.
+The Drews compendium is shown as the general example because the same workflow
+was applied to Steele and Tao, starting from their respective signature
+matrices.
+
+The final `mat_purity_mut` matrices will be distributed through Zenodo. Raw
+TCGA data and external signature source files are not redistributed in this
+repository.
+
+# Input paths
+
+The original TCGA and signature inputs are available from the studies cited in
+the manuscript. The paths below are placeholders and should be adapted to the
+local locations of the downloaded files. Because several preprocessing steps
+are computationally intensive, users interested in reproducing the downstream
+analyses can start directly from the final matrices distributed with the
+associated Zenodo record.
+
+```{r, eval=FALSE}
+input_dir <- "/path/to/downloaded_inputs"
+
+post_normalization_file <- file.path(
+  input_dir,
+  "exp_meth_post_normalization.RData"
+)
+mutation_file <- "../data/processed/mut_finale.RData"
+age_file <- file.path(input_dir, "mmc1.xlsx")
+ucec_age_file <- file.path(
+  input_dir,
+  "TCGA-UCEC_clinical_from_XML.csv"
+)
+
+drews_signature_file <- file.path(
+  input_dir,
+  "Signature_Compendium_v5_Cosine-0.74_Activities_THRESH95_NAMESAPRIL21.rds"
+)
+steele_signature_file <- file.path(
+  input_dir,
+  "Steele_signature_attributions.xlsx"
+)
+steele_metadata_file <- file.path(
+  input_dir,
+  "Steele_ASCAT_metadata.xlsx"
+)
+tao_signature_file <- file.path(
+  input_dir,
+  "tcga_cn_sigs_CN176_activity.rds"
+)
+tao_type_file <- file.path(input_dir, "TCGA_type_info.rds")
+```
+
+The object `ordinata` loaded from `exp_meth_post_normalization.RData` is
+the harmonized pan-cancer expression and methylation matrix. The methylation
+normalization and batch-effect assessment underlying this matrix are
+documented in `05_methylation_batch_effect.Rmd`.
+
+The age table represented by `mmc1.xlsx` is the supplementary clinical table
+from the source study specified in the manuscript. File names may differ after
+download and do not need to match these placeholders.
+
+# R packages
+```{r, eval=FALSE}
+library(TCGAbiolinks)
+library(TCGAutils)
+library(curatedTCGAData)
+library(MultiAssayExperiment)
+library(caret)
+library(dplyr)
+library(readr)
+library(readxl)
+library(usefun)
+library(KEGGREST)
+library(org.Hs.eg.db)
+```
+
+# Compendium-specific input
+
+Only the signature source and the associated sample annotations change among
+the three compendia.
+
+| Compendium | Target shown in preprocessing | Signature source |
+| --- | --- | --- |
+| Drews | CX1 | Drews signature activity matrix |
+| Steele | CN1 | Steele pan-cancer signature attribution matrix |
+| Tao | Sig1 | Tao relative signature activity matrix |
+
+## Drews
+```{r, eval=FALSE}
+exp<-readRDS(drews_signature_file)
+load(post_normalization_file)
+
+rownames(exp)<-substr(rownames(exp),1, 12)
+exp_INT<-intersect(rownames(exp), rownames(ordinata))
+un_tumor_finale<-ordinata[exp_INT, , drop = FALSE]
+```
+
+## Steele
+```{r, eval=FALSE}
+steel<- read_excel(
+  steele_signature_file,
+  sheet = "Pancan sig attributions"
+)
+steel<- data.frame(steel, row.names = 1)
+steel<-steel[order(row.names(steel)),]
+steel[sapply(steel, is.character)] <-
+  lapply(steel[sapply(steel, is.character)], as.numeric)
+rownames(steel)<-substr(rownames(steel),1, 12)
+
+metadata1<-read_excel(
+  steele_metadata_file,
+  sheet = "TCGA ASCAT fits"
+)
+meta<-data.frame(metadata1, row.names = 1)
+rownames(meta)<-substr(rownames(meta),1, 12)
+meta<-meta[order(row.names(meta)),]
+
+steel <- steel %>%
+  mutate(purity = meta$purity) %>%
+  mutate(cancer_type = meta$cancer_type) %>%
+  relocate(purity, .after = cancer_type)
+
+exp_INT<-intersect(rownames(steel), rownames(ordinata))
+un_tumor_finale<-ordinata[exp_INT, , drop = FALSE]
+```
+
+## Tao
+```{r, eval=FALSE}
+tcga_cn_sigs_CN176_activity <- readRDS(
+  tao_signature_file
+)
+TCGA<-tcga_cn_sigs_CN176_activity$relative
+TCGA <- data.frame(TCGA, row.names = 1)
+
+TCGA_type_info <- readRDS(tao_type_file)
+prova<-TCGA[grep("01$|03$", rownames(TCGA)),]
+rownames(prova)<-substr(rownames(prova),1, 12)
+
+tao_ct<-data.frame(TCGA_type_info, row.names = 1)
+tao_ct$samples<-rownames(tao_ct)
+tao_ct<-as.data.frame(tao_ct[order(row.names(tao_ct)),])
+tao_ct<-tao_ct[grep("01$|03$", rownames(tao_ct)),]
+rownames(tao_ct)<-substr(rownames(tao_ct), 1, 12)
+flag<-prova[rownames(prova) %in% rownames(tao_ct),]
+
+tao<-cbind(tao_ct[,1], flag)
+colnames(tao)[1]<-"cancer_type"
+
+exp_INT<-intersect(rownames(tao), rownames(ordinata))
+un_tumor_finale<-ordinata[exp_INT, , drop = FALSE]
+```
+
+# Expression and methylation filtering
+
+The pan-cancer expression and methylation matrices were first restricted to
+samples represented in the selected signature compendium. Features in the
+lowest 20% of the coefficient-of-variation distribution were removed
+separately for expression and methylation.
+
+```{r, eval=FALSE}
+un_Tumor_scale<-scale(un_tumor_finale, center =FALSE)
+
+CV1<-sapply(
+  as.data.frame(un_Tumor_scale),
+  function(un_Tumor_scale)
+    sd(un_Tumor_scale, na.rm=TRUE) /
+    abs(mean(un_Tumor_scale, na.rm= TRUE))
+)
+C_V1<-as.matrix(CV1)
+
+# Drews expression features
+b<-as.matrix(C_V1[1:16400,])
+b<-as.data.frame(b)
+o1<-as.matrix(arrange(b, b$V1))
+fd1<-as.data.frame(o1[3281:16400,])
+colnames(fd1)[1] <- "V1"
+
+# Drews methylation features
+c<-as.matrix(C_V1[16401:30083,])
+c<-as.data.frame(c)
+o<-as.matrix(arrange(c, c$V1))
+fd<-as.data.frame(o[2738:13683,])
+colnames(fd)[1] <- "V1"
+
+fd_exp<-as.matrix(fd1)
+ordi_exp<-as.matrix(fd_exp[order(row.names(fd_exp)), ])
+fd_meth<-as.matrix(fd)
+ordi_meth<-as.matrix(fd_meth[order(row.names(fd_meth)), ])
+
+test_exp<-un_tumor_finale[,1:16400]
+test_meth<-un_tumor_finale[, 16401:30083]
+prova_exp<-test_exp[,colnames(test_exp) %in% colnames(t(ordi_exp))]
+prova_meth<-test_meth[,colnames(test_meth) %in% colnames(t(ordi_meth))]
+un_Tumor_CV<-cbind(prova_exp, prova_meth)
+```
+
+For Steele and Tao, the corresponding original indices were:
+```{r, eval=FALSE}
+b<-as.matrix(C_V1[1:15976,])
+b<-as.data.frame(b)
+o1<-as.matrix(arrange(b, b$V1))
+fd1<-as.data.frame(o1[3196:15976,])
+
+c<-as.matrix(C_V1[15977:29650,])
+c<-as.data.frame(c)
+o<-as.matrix(arrange(c, c$V1))
+fd<-as.data.frame(o[2736:13674,])
+
+test_exp<-un_tumor_finale[,1:15976]
+test_meth<-un_tumor_finale[,15977:29650]
+```
+
+# Near-zero variance and correlation filtering
+```{r, eval=FALSE}
+a<-as.character(colnames(un_Tumor_CV))
+b<-make.unique(a)
+colnames(un_Tumor_CV)<-b
+
+nzv<-nearZeroVar(
+  un_Tumor_CV,
+  uniqueCut = 40,
+  saveMetrics = TRUE,
+  names = TRUE
+)
+
+nzv.1<-nearZeroVar(
+  un_Tumor_CV,
+  uniqueCut = 40,
+  saveMetrics = FALSE
+)
+
+M<-cor(un_Tumor_CV, use = "pairwise.complete.obs")
+flag<-findCorrelation(M, cutoff = .90)
+un_Tumor_CV_f<-un_Tumor_CV[, -flag]
+```
+
+# Signature and clinical variables
+
+The selected signature was placed at the beginning of the matrix. Cancer type,
+age, and purity were then added from the corresponding TCGA and ASCAT
+annotations.
+
+## Drews example
+```{r, eval=FALSE}
+s_un_Tumor<-scale(un_Tumor_CV_f, center =FALSE)
+
+exp_IN<-exp[exp_INT, , drop = FALSE]
+un_tumor_finale<-as.data.frame(cbind(exp_IN[, 1], s_un_Tumor))
+colnames(un_tumor_finale)[1]<-"CX1"
+un_tumor_finale<-
+  un_tumor_finale[, colSums(is.na(un_tumor_finale))==0]
+
+metadata<-Metadata_TCGA_ASCAT_penalty70
+p_ct<-metadata[, c(2,2,3,8)]
+dup<-!duplicated(p_ct[, 1])
+flag<-p_ct[dup,]
+p_ct<-data.frame(flag, row.names = 2)
+p_ct<-p_ct[exp_INT, , drop = FALSE]
+mat_p_ct<-cbind(p_ct, un_tumor_finale)
+
+c<-as.data.frame(cbind(
+  colData(primaryTumors)[, getClinicalNames("ACC")][, 1:2]@rownames,
+  colData(primaryTumors)[, getClinicalNames("ACC")][, 1:2]$years_to_birth
+))
+colnames(c)[c(1,2)]<- c("patient", "age")
+rownames(c)<-c[,1]
+c<-c[order(rownames(c)), ]
+
+c_sorf<-intersect(rownames(c), rownames(un_Tumor_CV_f))
+c_sorf<-c[c_sorf, , drop = FALSE]
+mat_finale<-cbind(c_sorf, mat_p_ct[,-1])
+```
+
+### Drews-specific recovery of missing UCEC ages
+
+The original Drews workflow included an additional step to recover missing
+UCEC ages from the TCGA clinical XML data before complete cases were selected.
+
+```{r, eval=FALSE}
+TCGA_UCEC_clinical_from_XML <- read_csv(ucec_age_file)
+a<-as.data.frame(cbind(
+  TCGA_UCEC_clinical_from_XML$days_to_birth,
+  TCGA_UCEC_clinical_from_XML$bcr_patient_barcode
+))
+a<-a[rowSums(is.na(a)) ==0,]
+colnames(a)<-c("age", "patient")
+a<-unique(a)
+eta<-data.frame(a, row.names = 2)
+
+eta[sapply(eta, is.character)] <-
+  lapply(eta[sapply(eta, is.character)], as.integer)
+eta_finale<-as.data.frame(
+  sapply(eta, function(x) floor(abs(x) /365.25, 0))
+)
+rownames(eta_finale)<-as.vector(rownames(eta))
+eta_finale<-cbind(eta_finale, rownames(eta))
+ordi_eta<-as.data.frame(
+  eta_finale[order(row.names(eta_finale)), ]
+)
+colnames(ordi_eta)[2]<-"patient"
+
+vet<-intersect(rownames(ordi_eta), rownames(mat_finale))
+visual<-ordi_eta[vet, , drop = FALSE]
+m_visual<-mat_finale[vet, , drop = FALSE]
+
+m_all_ucec<-cbind(visual,m_visual[,-c(1,2)])
+m_visual_no_ucec<-
+  mat_finale[!rownames(mat_finale) %in% rownames(ordi_eta),]
+
+m_finale_ucec<-rbind(m_visual_no_ucec, m_all_ucec)
+m_finale_ucec_ordinata<-as.data.frame(
+  m_finale_ucec[order(row.names(m_finale_ucec)), ]
+)
+```
+
+## Steele-specific clinical variables
+
+Steele used the ASCAT cancer type and purity supplied with that compendium.
+Three samples missing from the age table were added explicitly in the original
+workflow.
+
+```{r, eval=FALSE}
+exp_IN<-steel[exp_INT, , drop = FALSE]
+un_tumor_finale<-as.data.frame(
+  cbind(CN1 = exp_IN[, 1], un_Tumor_CV_f)
+)
+un_tumor_finale<-
+  un_tumor_finale[, colSums(is.na(un_tumor_finale))==0]
+
+un_tumor_finale <- un_tumor_finale %>%
+  mutate(cancer_type = exp_IN$cancer_type) %>%
+  mutate(purity = exp_IN$purity) %>%
+  relocate(cancer_type, .after = CN1) %>%
+  relocate(purity, .after = cancer_type)
+
+mmc1 <- read_excel(age_file)
+tt<-mmc1[, c(2:4)]
+tt<-data.frame(tt, row.names = 1)
+tt1<-tt[order(rownames(tt)),]
+tmp1<-intersect(rownames(tt1), rownames(un_tumor_finale))
+tt2<-tt1[tmp1, , drop = FALSE]
+
+tt3 <- data.frame(
+  type = c("GBM","READ", "LGG"),
+  age_at_initial_pathologic_diagnosis = c(NA, 71, NA),
+  row.names = c(
+    "TCGA-28-2510",
+    "TCGA-F5-6810",
+    "TCGA-R8-A6YH"
+  )
+)
+tt3<-rbind(tt2, tt3)
+tt3<-tt3[order(rownames(tt3)),]
+
+mat_finale<-cbind(age = tt3[, 2], un_tumor_finale)
+mat_finale <- mat_finale %>%
+  relocate(age, .before = purity)
+```
+
+## Tao-specific clinical variables
+
+Tao used its own tumor-type annotation, while purity was matched from the
+Steele ASCAT metadata and age was matched from the TCGA clinical table.
+
+```{r, eval=FALSE}
+exp_IN<-tao[exp_INT, , drop = FALSE]
+un_tumor_finale<-as.data.frame(
+  cbind(Sig1 = exp_IN$Sig1, un_Tumor_CV_f)
+)
+un_tumor_finale<-
+  un_tumor_finale[, colSums(is.na(un_tumor_finale))==0]
+
+un_tumor_finale<- un_tumor_finale %>%
+  mutate(cancer_type = exp_IN$cancer_type) %>%
+  relocate(cancer_type, .before = Sig1)
+
+metadata1<-read_excel(
+  steele_metadata_file,
+  sheet = "TCGA ASCAT fits"
+)
+meta<-data.frame(metadata1, row.names = 1)
+rownames(meta)<-substr(rownames(meta),1, 12)
+meta<-meta[order(row.names(meta)),]
+meta<-meta[exp_INT, , drop = FALSE]
+
+un_tumor_finale<- un_tumor_finale %>%
+  mutate(purity = meta$purity) %>%
+  relocate(purity, .after = Sig1)
+
+mmc1 <- read_excel(age_file)
+tt<-mmc1[, c(2:4)]
+tt<-data.frame(tt, row.names = 1)
+tt1<-tt[order(rownames(tt)),]
+tmp1<-intersect(rownames(tt1), rownames(un_tumor_finale))
+tt2<-tt1[tmp1, , drop = FALSE]
+
+mat_finale<-cbind(age = tt2[, 2], un_tumor_finale)
+mat_finale <- mat_finale %>%
+  relocate(age, .after = Sig1)
+```
+
+These compendium-specific steps are retained separately because they alter
+sample inclusion and the positions of the identifier and clinical columns used
+in the final matrix.
+
+# Mutation and pathway features
+
+The mutation matrix was reduced by replacing genes represented in the selected
+cancer-related and KEGG pathways with pathway-level mutation counts. Genes not
+assigned to these pathways were retained individually.
+
+```{r, eval=FALSE}
+load(mutation_file)
+```
+
+The objects `pathway` and `names_geneSymbol` contain the pathway-to-gene
+mappings used in the original analysis.
+
+```{r, eval=FALSE}
+mut<-as.data.frame(do.call(rbind, data_mut_finale))
+rownames(mut) <- sub(".*\\.", "", rownames(mut))
+df<-mut[order(row.names(mut)), ]
+t<-na.omit(mat_finale)
+tmp<-intersect(rownames(df), rownames(t))
+df<-df[tmp, , drop = FALSE]
+
+keep_cols<-list()
+for (i in names(pathway)) {
+  genes <- pathway[[i]]
+  for(j in genes){
+    matching_cols <- grep(
+      paste0("^", j, "$"),
+      colnames(df),
+      value = TRUE
+    )
+    keep_cols[[names(pathway[i])]] <-
+      unique(c(keep_cols[[i]], matching_cols))
+  }
+}
+
+path_df<-list()
+for (i in names(pathway)) {
+  path_df[[names(pathway[i])]] <- df[, keep_cols[[i]]]
+}
+
+genes_to_drop<-colnames(do.call(cbind,path_df))
+genes_to_drop<- sub(".*\\.", "", genes_to_drop)
+tmp<-intersect(colnames(df), genes_to_drop)
+
+df_mod<-df[, tmp, drop = FALSE]
+df_finale <- data.frame(
+  matrix(nrow = nrow(df), ncol = length(pathway))
+)
+rownames(df_finale)<-rownames(df_mod)
+colnames(df_finale)<-names(pathway)
+
+for (i in 1:length(pathway)) {
+  temp_df <- df_mod %>%
+    mutate(!!names(pathway[i]) := rowSums(path_df[[i]])) %>%
+    relocate(!!names(pathway[i]))
+  df_finale[, i]<-temp_df[,1]
+}
+
+keep_cols <- list()
+for (i in names(names_geneSymbol)) {
+  genes <- names_geneSymbol[[i]]
+  for (j in genes) {
+    matching_cols <- grep(
+      paste0("^", j, "$"),
+      colnames(df),
+      value = TRUE
+    )
+    if (length(matching_cols) == 0) {
+      gene_pattern <- substr(j, 1, nchar(j) - 1)
+      matching_cols <- grep(
+        paste0("^", gene_pattern, "$"),
+        colnames(df),
+        value = TRUE
+      )
+    }
+    keep_cols[[i]] <- unique(c(keep_cols[[i]], matching_cols))
+  }
+}
+
+path_df<-list()
+for (i in names(names_geneSymbol)) {
+  path_df[[names(names_geneSymbol[i])]] <- df[, keep_cols[[i]]]
+}
+
+genes_to_drop<-colnames(do.call(cbind,path_df))
+genes_to_drop<- sub(".*\\.", "", genes_to_drop)
+tmp<-intersect(colnames(df), genes_to_drop)
+
+df_mod1<-df[, tmp, drop = FALSE]
+df_finale1 <- data.frame(
+  matrix(nrow = nrow(df), ncol = length(names_geneSymbol))
+)
+rownames(df_finale1)<-rownames(df_mod1)
+colnames(df_finale1)<-names(names_geneSymbol)
+
+for (i in 1:length(names_geneSymbol)) {
+  temp_df <- df_mod1 %>%
+    mutate(
+      !!names(names_geneSymbol[i]) := rowSums(path_df[[i]])
+    ) %>%
+    relocate(!!names(names_geneSymbol[i]))
+  df_finale1[, i]<-temp_df[,1]
+}
+
+df_finale_unito<-cbind(df_finale, df_finale1)
+drop_col<-unique(c(colnames(df_mod), colnames(df_mod1)))
+tt<-df[, !(colnames(df) %in% drop_col), drop = FALSE]
+mut_path<-cbind(tt, df_finale_unito)
+```
+
+# Final multi-omics matrix
+
+## Drews
+```{r, eval=FALSE}
+t<-na.omit(m_finale_ucec_ordinata)
+prova<-t[,-c(2,3,5)]
+prova<-cbind(prova, mut_path[13343:length(mut_path)])
+prova1<-scale(prova, center = FALSE)
+mat_purity_mut<-cbind(t[, c(2,3,5)], prova1)
+mat_purity_mut<-cbind(
+  mat_purity_mut,
+  mut_path[, -c(1:2, 13343:length(mut_path)), drop = FALSE]
+)
+
+a<-as.character(colnames(mat_purity_mut))
+b<-make.unique(a)
+colnames(mat_purity_mut)<-b
+```
+
+## Steele and Tao
+```{r, eval=FALSE}
+t<-na.omit(mat_finale)
+prova<-t[,-c(1,2)]
+prova<-cbind(prova, mut_path[13343:length(mut_path)])
+prova1<-scale(prova, center = FALSE)
+mat_purity_mut<-cbind(t[, c(1,2)], prova1)
+mat_purity_mut<-cbind(
+  mat_purity_mut,
+  mut_path[, -c(1, 13343:length(mut_path)), drop = FALSE]
+)
+
+a<-as.character(colnames(mat_purity_mut))
+b<-make.unique(a)
+colnames(mat_purity_mut)<-b
+
+mat_purity_mut <-mat_purity_mut %>%
+  relocate(Tumor_Sample_Barcode, .before = cancer_type)
+```
+
+# Alternative target signatures
+
+The three distributed final matrices contain the first signature used during
+preprocessing:
+
+| Matrix | Included target column |
+| --- | --- |
+| `mat_purity_mut_drews` | `CX1` |
+| `mat_purity_mut_steele` | `CN1` |
+| `mat_purity_mut_tao` | `Sig1` |
+
+```{r, eval=FALSE}
+load("/path/to/final_matrices.RData")
+```
+
+The complete signature matrices are stored in
+`data/processed/signature_exploration_data.RData` as `drew`, `steele`, and
+`tao`. To model another signature, the original target column is replaced by
+the desired signature after matching samples by their row names. All
+multi-omics predictors remain unchanged.
+
+```{r, eval=FALSE}
+load("../data/processed/signature_exploration_data.RData")
+
+# Example: replace CX1 with CX2 in the Drews matrix
+sample_ids<-rownames(mat_purity_mut_drews)
+stopifnot(all(sample_ids %in% rownames(drew)))
+
+mat_purity_mut_drews$CX1<-drew[sample_ids, "CX2"]
+colnames(mat_purity_mut_drews)[
+  colnames(mat_purity_mut_drews) == "CX1"
+]<-"CX2"
+```
+
+The same replacement is applied to Steele (`CN1`) and Tao (`Sig1`). For the
+models reported in the manuscript, the alternative targets were:
+
+```text
+Drews:  CX2, CX3, CX5
+Steele: CN2, CN9, CN17
+Tao:    Sig2, Sig5, Sig7
+```
+
+The saved train/test sample identifiers should then be used to retain the
+original split for every target signature.
+
+# Stratified training and test split
+An 80/20 split stratified by cancer type was used. The split was generated
+independently for each compendium.
+
+## Drews
+```{r, eval=FALSE}
+set.seed(1234)
+fract<- mat_purity_mut_drews %>%
+  group_by(cancer_type) %>%
+  sample_frac(.80)
+
+ordi_train<-data.frame(fract, row.names = 1)
+tmp<-outersect(rownames(ordi_train), mat_purity_mut$patient)
+ordi_test<-mat_purity_mut[tmp, , drop = FALSE]
+ordi_test<-data.frame(ordi_test, row.names = 1)
+```
+
+## Steele
+```{r, eval=FALSE}
+set.seed(1234)
+fract<- mat_purity_mut_steele %>%
+  group_by(cancer_type) %>%
+  sample_frac(.80)
+
+ordi_train<-data.frame(fract, row.names = 2)
+tmp<-outersect(rownames(ordi_train), rownames(mat_purity_mut))
+ordi_test<-mat_purity_mut[tmp, , drop = FALSE]
+ordi_test<-data.frame(ordi_test, row.names = 2)
+```
+
+## Tao
+```{r, eval=FALSE}
+set.seed(1234)
+fract<- mat_purity_mut_tao %>%
+  group_by(cancer_type) %>%
+  sample_frac(.80)
+
+ordi_train<-data.frame(fract, row.names = 1)
+tmp<-outersect(rownames(ordi_train), rownames(mat_purity_mut))
+ordi_test<-mat_purity_mut[tmp, , drop = FALSE]
+ordi_test<-data.frame(ordi_test, row.names = 1)
+```
+
+# Distributed checkpoints
+
+The computationally expensive correlation filtering and pathway construction
+do not need to be repeated to reproduce the modeling analyses. The
+accompanying Zenodo record should therefore contain one final matrix per
+compendium:
+
+```text
+mat_purity_mut_drews.RData
+mat_purity_mut_steele.RData
+mat_purity_mut_tao.RData
+```
+
+Each file should contain the appropriately named `mat_purity_mut_*` object and
+the original train/test sample identifiers. The matrices initially contain
+only `CX1`, `CN1`, or `Sig1`; the other target signatures are obtained from
+`signature_exploration_data.RData` as shown above. These inputs allow users to
+reconstruct the final modeling matrices for any target signature or cluster
+classification. The approximately 4 GB post-normalization object is not
+included in GitHub.

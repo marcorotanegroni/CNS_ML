@@ -1,0 +1,381 @@
+---
+title: "Copy number signature exploration"
+output: html_notebook
+---
+
+# Scope
+
+This notebook generates Figures 2-4 and Supplementary Figure 1. It compares
+the distributions, principal components, and agreement of copy number
+signatures from the Drew, Steele, and Tao compendia.
+
+# R packages and data
+```{r setup, message=FALSE, warning=FALSE}
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(ggpubr)
+library(factoextra)
+library(pheatmap)
+library(RColorBrewer)
+
+load("../data/processed/signature_exploration_data.RData")
+
+data<-list(
+  Drew = drew,
+  Steele = steele,
+  Tao = tao
+)
+```
+The input file contains the three complete signature matrices, the matrices
+restricted to common samples, and the TCGA tissue source site table.
+
+# Figure 2
+
+## Signature distributions
+```{r}
+a<-melt(drew[,-1], variable.name = "signature")
+drew_p<-ggplot(a, aes(x = signature, y = value, fill = signature)) +
+  geom_boxplot(outlier.size = .2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank()) +
+  guides(fill = "none")
+
+a1<-melt(steele[,-1], variable.name = "signature")
+steele_p<-ggplot(a1, aes(x = signature, y = value, fill = signature)) +
+  geom_boxplot(outlier.size = .2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank()) +
+  guides(fill = "none")
+
+a1<-melt(tao[,-1], variable.name = "signature")
+tao_p<-ggplot(a1, aes(x = signature, y = value, fill = signature)) +
+  geom_boxplot(outlier.size = .2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank()) +
+  guides(fill = "none")
+```
+
+## PCA loadings and linear models
+```{r}
+regression_feature_selection <- function(data_sig) {
+  codici<-substr(rownames(data_sig), 6,7)
+  flag<- data_sig %>%
+    mutate(TSS_Code = factor(codici, levels = unique(codici)),
+           sample = rownames(data_sig))
+  tmp<-merge(tissueSourceSite, flag, by = "TSS_Code")
+  merge_df<-tmp[,-c(3:4)]
+  rownames(merge_df)<-merge_df$sample
+  colnames(merge_df)[2] <- "source_site"
+  merge_df<-merge_df[, -c(1,length(merge_df))]
+  return(merge_df)
+}
+
+df_regresion<-list()
+for (i in seq_along(data)) {
+  df_regresion[[names(data[i])]]<- regression_feature_selection(data[[i]])
+}
+
+plot_list <- list()
+for (i in seq_along(data)) {
+  pca_result<-prcomp(data[[i]][, -1], scale = FALSE)
+  plot_list[[i]]<-fviz_pca_var(
+    pca_result,
+    col.var = "contrib",
+    gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07")
+  )
+
+  pca_result_reg<-prcomp(df_regresion[[i]][, -c(1:2)], scale = TRUE)
+  pca_data <- as.data.frame(pca_result_reg$x[, 1:5])
+  pca_data$source_site <- df_regresion[[i]]$source_site
+  pca_data$cancer_type <- df_regresion[[i]]$cancer_type
+
+  model_metrics <- lapply(1:5, function(i) {
+    model <- lm(get(paste0("PC", i)) ~ source_site, data = pca_data)
+    summary <- summary(model)
+    data.frame(
+      PC = paste0("PC", i),
+      R_squared = summary$r.squared,
+      F_statistic = summary$fstatistic[1],
+      RSE = summary$sigma
+    )
+  }) %>%
+    bind_rows()
+
+  model_metrics1 <- lapply(1:5, function(i) {
+    model <- lm(get(paste0("PC", i)) ~ cancer_type, data = pca_data)
+    summary <- summary(model)
+    data.frame(
+      PC = paste0("PC", i),
+      R_squared = summary$r.squared,
+      F_statistic = summary$fstatistic[1],
+      RSE = summary$sigma
+    )
+  }) %>%
+    bind_rows()
+
+  plot_list[[i+3]]<-ggplot(model_metrics, aes(x = PC, y = R_squared)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(y = "Value", fill = "Variable") +
+    ylab("R_squared TSS") +
+    xlab(NULL) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(limits = c(0, .35))
+
+  plot_list[[i+6]]<-ggplot(model_metrics1, aes(x = PC, y = R_squared)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "PC", y = "Value", fill = "Variable") +
+    ylab("R_squared Tumor type") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(limits = c(0, .35))
+}
+```
+
+```{r figure-2, fig.width=14, fig.height=18}
+plotlist <- c(
+  list(drew = drew_p, steele = steele_p, tao = tao_p),
+  plot_list
+)
+
+figure2<-ggarrange(
+  plotlist = plotlist,
+  heights = c(1.75, 1.75, 0.75, 0.75),
+  labels = "auto",
+  vjust = 1.2,
+  nrow = 4,
+  ncol = 3
+)
+
+figure2
+```
+
+# Figure 3 and Supplementary Figure 1
+```{r}
+data4 <- list(
+  Drew = cor(data[[1]][,-1]),
+  Drew_Tao = cor(drew_tao[,-1], tao_drew[,-1]),
+  Steele = cor(data[[2]][,-1]),
+  Drew_Steele = cor(
+    drew_tao[,-1],
+    steel_drew[,-1],
+    use = "complete.obs"
+  ),
+  Tao = cor(data[[3]][,-1]),
+  Tao_Steele = cor(
+    tao_drew[,-1],
+    steel_drew[,-1],
+    use = "complete.obs"
+  )
+)
+
+data6 <- list(
+  Drew = cor(data[[1]][,c(2:4, 6)]),
+  Drew_Tao = cor(drew_tao[,c(2:4, 6)], tao_drew[,c(2:3, 6,8)]),
+  Steele = cor(data[[2]][,c(2:3, 10, 18)]),
+  Drew_Steele = cor(
+    drew_tao[,c(2:4, 6)],
+    steel_drew[,c(2:3, 10, 18)],
+    use = "complete.obs"
+  ),
+  Tao = cor(data[[3]][,c(2:3, 6,8)]),
+  Tao_Steele = cor(
+    tao_drew[,c(2:3, 6,8)],
+    steel_drew[,c(2:3, 10, 18)],
+    use = "complete.obs"
+  )
+)
+
+pheatmap_colors <- colorRampPalette(
+  rev(brewer.pal(n = 7, name = "RdYlBu"))
+)(100)
+```
+
+```{r figure-3, fig.width=12, fig.height=16}
+plot_list <- list()
+
+for (i in seq_along(data4)) {
+  corr_df <- melt(data4[[i]])
+
+  p <- ggplot(corr_df, aes(x = Var1, y = Var2, fill = value)) +
+    geom_tile(color = "black") +
+    geom_text(aes(label = round(value, 2)), size = 2) +
+    scale_fill_gradientn(
+      colors = pheatmap_colors,
+      limits = c(-0.8, 1),
+      name = "Correlation"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.y = element_text(hjust = 1.7),
+      axis.title = element_blank()
+    )
+
+  plot_list[[i]] <- p
+}
+
+corr_plot <- ggarrange(
+  plotlist = plot_list,
+  ncol = 2,
+  nrow = 3,
+  labels = "auto",
+  font.label = list(size = 8),
+  common.legend = TRUE,
+  legend = "bottom"
+)
+
+corr_plot
+```
+
+```{r supplementary-figure-1, fig.width=10, fig.height=12}
+plot_list <- list()
+
+for (i in seq_along(data6)) {
+  corr_df <- melt(data6[[i]])
+
+  p <- ggplot(corr_df, aes(x = Var1, y = Var2, fill = value)) +
+    geom_tile(color = "black") +
+    geom_text(aes(label = round(value, 2)), size = 3) +
+    scale_fill_gradientn(
+      colors = pheatmap_colors,
+      limits = c(-1, 1),
+      name = "Correlation"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.y = element_text(hjust = 1),
+      axis.title = element_blank()
+    )
+
+  plot_list[[i]] <- p
+}
+
+corr_plot_active <- ggarrange(
+  plotlist = plot_list,
+  ncol = 2,
+  nrow = 3,
+  labels = "auto",
+  font.label = list(size = 8),
+  common.legend = TRUE,
+  legend = "bottom"
+)
+
+corr_plot_active
+```
+
+# Figure 4
+```{r jaccard-calculation, fig.show="hide"}
+replace_median<-function(x) {
+  median_val<-median(x, na.rm = TRUE)
+  if (median_val == 0) {
+    return(ifelse(x > median_val, 1, 0))
+  } else {
+    return(ifelse(x >= median_val, 1, 0))
+  }
+}
+
+drew_dico<- drew[,-1] %>%
+  mutate(across(everything(), replace_median))
+drew_dico<-drew_dico[rownames(drew_tao), , drop = FALSE]
+
+tao_dico<- tao[,-1] %>%
+  mutate(across(everything(), replace_median))
+tao_dico<-tao_dico[rownames(tao_drew), , drop = FALSE]
+
+steel_dico<- steele[,-1] %>%
+  mutate(across(everything(), replace_median))
+steel_dico<-steel_dico[rownames(steel_drew), , drop = FALSE]
+
+complete_samples<-complete.cases(steel_dico)
+drew_dico<-drew_dico[complete_samples, , drop = FALSE]
+tao_dico<-tao_dico[complete_samples, , drop = FALSE]
+steel_dico<-steel_dico[complete_samples, , drop = FALSE]
+
+flag<-cbind(tao_dico, drew_dico)
+flag2<-cbind(flag, steel_dico)
+x<-flag2
+
+jaccard_mat<-function(x) {
+  Jc_matrix<-matrix(NA, nrow = ncol(x), ncol = ncol(x))
+  for (i in 1:ncol(x)) {
+    for (j in 1:ncol(x)) {
+      if (i != j) {
+        true<-sum(x[,i] == x[,j])
+        tot<-2*nrow(x) - true
+        Jc_matrix[i, j]<- true/tot
+      } else {
+        Jc_matrix[i, j]<- NA
+      }
+    }
+  }
+  colnames(Jc_matrix)<-colnames(x)
+  rownames(Jc_matrix)<-colnames(x)
+  return(Jc_matrix)
+}
+
+b<-jaccard_mat(x)
+
+phe<-pheatmap(flag2, show_rownames = FALSE)
+column_order_indices<-phe[["tree_col"]][["order"]]
+column_order_names <- colnames(flag2)[column_order_indices]
+
+plot_heatmap <- function(risultati, col_labels) {
+  risultati <- risultati[col_labels, col_labels, drop = FALSE]
+  matrice_long <- reshape2::melt(
+    risultati,
+    varnames = c("Var1", "Var2")
+  )
+
+  ggplot(matrice_long, aes(x = Var1, y = Var2, fill = value)) +
+    geom_tile(
+      color = "grey25",
+      lwd = .1,
+      linetype = 1
+    ) +
+    scale_fill_gradientn(
+      colors = c("white", "white", "lightblue", "darkblue", "darkblue"),
+      values = scales::rescale(c(0, 0.25, 0.5, .75, 1)),
+      breaks = c(0, 0.25, 0.5, 0.75, 1),
+      limits = c(0, 1),
+      na.value = "grey50"
+    ) +
+    labs(x = "", y = "", fill = "Value") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 50, hjust = 1, size = 7),
+      axis.text.y = element_text(size = 8),
+      legend.position = "none"
+    ) +
+    coord_fixed()
+}
+
+all<-plot_heatmap(b, column_order_names)
+
+y<-x[, c(1,2,5,7,21:23,25,38:39,46,54)]
+phe<-pheatmap(y, show_rownames = FALSE)
+column_order_indices<-phe[["tree_col"]][["order"]]
+column_order_names <- colnames(y)[column_order_indices]
+
+all_active<-plot_heatmap(b, column_order_names) +
+  theme(legend.position = "right")
+```
+
+```{r figure-4, fig.width=14, fig.height=7}
+jc_list<-list(all, all_active)
+
+figure4<-ggarrange(
+  plotlist = jc_list,
+  labels = "auto",
+  vjust = 2.5,
+  hjust = -2,
+  widths = c(1.1, 0.9)
+)
+
+figure4
+```
