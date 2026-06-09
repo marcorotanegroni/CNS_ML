@@ -32,9 +32,9 @@ used to reproduce Supplementary Figure 6.
 
 | File | Main contents | Used by |
 | --- | --- | --- |
+| `mut_finale.RData` | Tumor-specific mutation matrices | `00_data_preprocessing.Rmd` |
 | `signature_exploration_data.RData` | Three signature matrices and comparison metadata | `01_signature_exploration.Rmd` |
 | `clustering_data.RData` | Signature activities and final clustering objects | `02_clustering.Rmd` |
 | `surv_data.RData` | Survival tables, purity, and final clustering objects | `03_survival_analysis.Rmd` |
 | `list_varImp_class_80perc.RData` | Aggregated model variable-importance results | `04_machine_learning.Rmd` |
-| `mut_finale.RData` | Tumor-specific mutation matrices | `00_data_preprocessing.Rmd` |
 | `methylation_batch_effect_data.RData` | Paired LAML 27K, raw 450K, and normalized 450K matrices | `05_methylation_batch_effect.Rmd` |
