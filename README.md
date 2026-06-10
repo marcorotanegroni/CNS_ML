@@ -72,7 +72,7 @@ documented stratified split and model code.
 
 Small processed inputs required by the notebooks are stored in
 `data/processed/`. The large starting matrices are distributed through the
-associated Zenodo record:
+associated [Zenodo record](https://doi.org/10.5281/zenodo.20617051):
 
 - `final_matrices.RData` contains the final Drews, Steele, and Tao multi-omics
   matrices. These matrices allow users to recreate the train/test partitions
@@ -97,8 +97,10 @@ rather than duplicated in this repository.
 
 ## Citation
 
-The manuscript citation and Zenodo DOI will be added after publication of the
-corresponding records.
+The processed datasets are available from Zenodo:
+https://doi.org/10.5281/zenodo.20617051.
+
+The manuscript citation will be added after publication.
 
 ## License
 

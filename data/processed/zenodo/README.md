@@ -1,7 +1,8 @@
 # Zenodo files
 
 The following large processed files are distributed through the associated
-Zenodo record and are not tracked by Git.
+[Zenodo record](https://doi.org/10.5281/zenodo.20617051) and are not tracked
+by Git.
 
 The Zenodo record should use the Creative Commons Attribution 4.0
 International license (CC BY 4.0). This applies to the authors' processed
@@ -23,4 +24,4 @@ Final multi-omics matrices used for model development:
 Contains `ordinata`, the harmonized pan-cancer expression and methylation
 matrix (8,988 x 29,650).
 
-The Zenodo DOI will be added here after publication of the record.
+DOI: https://doi.org/10.5281/zenodo.20617051
