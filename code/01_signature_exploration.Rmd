@@ -7,7 +7,7 @@ output: html_notebook
 
 This notebook generates Figures 2-4 and Supplementary Figure 1. It compares
 the distributions, principal components, and agreement of copy number
-signatures from the Drew, Steele, and Tao compendia.
+signatures from the Drews, Steele, and Tao compendia.
 
 # R packages and data
 ```{r setup, message=FALSE, warning=FALSE}
@@ -22,7 +22,7 @@ library(RColorBrewer)
 load("../data/processed/signature_exploration_data.RData")
 
 data<-list(
-  Drew = drew,
+  Drews = drews,
   Steele = steele,
   Tao = tao
 )
@@ -34,8 +34,8 @@ restricted to common samples, and the TCGA tissue source site table.
 
 ## Signature distributions
 ```{r}
-a<-melt(drew[,-1], variable.name = "signature")
-drew_p<-ggplot(a, aes(x = signature, y = value, fill = signature)) +
+a<-melt(drews[,-1], variable.name = "signature")
+drews_p<-ggplot(a, aes(x = signature, y = value, fill = signature)) +
   geom_boxplot(outlier.size = .2) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
@@ -138,7 +138,7 @@ for (i in seq_along(data)) {
 
 ```{r figure-2, fig.width=14, fig.height=18}
 plotlist <- c(
-  list(drew = drew_p, steele = steele_p, tao = tao_p),
+  list(drews = drews_p, steele = steele_p, tao = tao_p),
   plot_list
 )
 
@@ -157,35 +157,35 @@ figure2
 # Figure 3 and Supplementary Figure 1
 ```{r}
 data4 <- list(
-  Drew = cor(data[[1]][,-1]),
-  Drew_Tao = cor(drew_tao[,-1], tao_drew[,-1]),
+  Drews = cor(data[[1]][,-1]),
+  Drews_Tao = cor(drews_tao[,-1], tao_drews[,-1]),
   Steele = cor(data[[2]][,-1]),
-  Drew_Steele = cor(
-    drew_tao[,-1],
-    steel_drew[,-1],
+  Drews_Steele = cor(
+    drews_tao[,-1],
+    steele_drews[,-1],
     use = "complete.obs"
   ),
   Tao = cor(data[[3]][,-1]),
   Tao_Steele = cor(
-    tao_drew[,-1],
-    steel_drew[,-1],
+    tao_drews[,-1],
+    steele_drews[,-1],
     use = "complete.obs"
   )
 )
 
 data6 <- list(
-  Drew = cor(data[[1]][,c(2:4, 6)]),
-  Drew_Tao = cor(drew_tao[,c(2:4, 6)], tao_drew[,c(2:3, 6,8)]),
+  Drews = cor(data[[1]][,c(2:4, 6)]),
+  Drews_Tao = cor(drews_tao[,c(2:4, 6)], tao_drews[,c(2:3, 6,8)]),
   Steele = cor(data[[2]][,c(2:3, 10, 18)]),
-  Drew_Steele = cor(
-    drew_tao[,c(2:4, 6)],
-    steel_drew[,c(2:3, 10, 18)],
+  Drews_Steele = cor(
+    drews_tao[,c(2:4, 6)],
+    steele_drews[,c(2:3, 10, 18)],
     use = "complete.obs"
   ),
   Tao = cor(data[[3]][,c(2:3, 6,8)]),
   Tao_Steele = cor(
-    tao_drew[,c(2:3, 6,8)],
-    steel_drew[,c(2:3, 10, 18)],
+    tao_drews[,c(2:3, 6,8)],
+    steele_drews[,c(2:3, 10, 18)],
     use = "complete.obs"
   )
 )
@@ -280,25 +280,25 @@ replace_median<-function(x) {
   }
 }
 
-drew_dico<- drew[,-1] %>%
+drews_dico<- drews[,-1] %>%
   mutate(across(everything(), replace_median))
-drew_dico<-drew_dico[rownames(drew_tao), , drop = FALSE]
+drews_dico<-drews_dico[rownames(drews_tao), , drop = FALSE]
 
 tao_dico<- tao[,-1] %>%
   mutate(across(everything(), replace_median))
-tao_dico<-tao_dico[rownames(tao_drew), , drop = FALSE]
+tao_dico<-tao_dico[rownames(tao_drews), , drop = FALSE]
 
-steel_dico<- steele[,-1] %>%
+steele_dico<- steele[,-1] %>%
   mutate(across(everything(), replace_median))
-steel_dico<-steel_dico[rownames(steel_drew), , drop = FALSE]
+steele_dico<-steele_dico[rownames(steele_drews), , drop = FALSE]
 
-complete_samples<-complete.cases(steel_dico)
-drew_dico<-drew_dico[complete_samples, , drop = FALSE]
+complete_samples<-complete.cases(steele_dico)
+drews_dico<-drews_dico[complete_samples, , drop = FALSE]
 tao_dico<-tao_dico[complete_samples, , drop = FALSE]
-steel_dico<-steel_dico[complete_samples, , drop = FALSE]
+steele_dico<-steele_dico[complete_samples, , drop = FALSE]
 
-flag<-cbind(tao_dico, drew_dico)
-flag2<-cbind(flag, steel_dico)
+flag<-cbind(tao_dico, drews_dico)
+flag2<-cbind(flag, steele_dico)
 x<-flag2
 
 jaccard_mat<-function(x) {
