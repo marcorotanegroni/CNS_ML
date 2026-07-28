@@ -200,18 +200,56 @@ tao_strat_PFI$tbl
 
 # Figure 7
 ```{r forest-plot-cluster2}
-# Forest plot: Cluster 2 vs Cluster 1 HR across all datasets/endpoints
-# (only significant contrast; clusters 3 and 4 not significant in any dataset)
+# Adjust all cluster coefficients from the six Cox models as one family.
+cox_models <- list(
+  Drews_OS   = drew_strat_OS$cox,
+  Drews_PFI  = drew_strat_PFI$cox,
+  Steele_OS  = steele_strat_OS$cox,
+  Steele_PFI = steele_strat_PFI$cox,
+  Tao_OS     = tao_strat_OS$cox,
+  Tao_PFI    = tao_strat_PFI$cox
+)
+
+all_cluster_tests <- do.call(
+  rbind,
+  lapply(names(cox_models), function(model_id) {
+    coefficient_table <- summary(cox_models[[model_id]])$coefficients
+    cluster_terms <- startsWith(
+      rownames(coefficient_table),
+      "as.factor(cluster)"
+    )
+    data.frame(
+      model_id = model_id,
+      term = rownames(coefficient_table)[cluster_terms],
+      p_raw = coefficient_table[cluster_terms, "Pr(>|z|)"],
+      row.names = NULL
+    )
+  })
+)
+all_cluster_tests$p_holm <- p.adjust(
+  all_cluster_tests$p_raw,
+  method = "holm"
+)
+
+# Forest plot: Cluster 2 vs Cluster 1 HR across all datasets/endpoints.
+cluster2_tests <- all_cluster_tests[
+  all_cluster_tests$term == "as.factor(cluster)2",
+  c("model_id", "p_holm")
+]
 
 forest_data <- data.frame(
+  model_id = c("Drews_OS", "Drews_PFI", "Steele_OS",
+               "Steele_PFI", "Tao_OS", "Tao_PFI"),
   dataset  = c("Drews", "Drews", "Steele", "Steele", "Tao", "Tao"),
   endpoint = c("OS", "PFI", "OS", "PFI", "OS", "PFI"),
   HR       = c(0.64, 0.68, 0.85, 0.85, 0.92, 0.87),
   CI_low   = c(0.54, 0.58, 0.76, 0.77, 0.84, 0.79),
-  CI_high  = c(0.77, 0.80, 0.95, 0.94, 1.01, 0.95),
-  p_val    = c("<0.001", "<0.001", "0.003", "0.002", "0.083", "0.002"),
-  sig      = c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE)
+  CI_high  = c(0.77, 0.80, 0.95, 0.94, 1.01, 0.95)
 )
+forest_data$p_holm <- cluster2_tests$p_holm[
+  match(forest_data$model_id, cluster2_tests$model_id)
+]
+forest_data$sig <- forest_data$p_holm < 0.05
 
 # Label: dataset + endpoint, ordered for display
 forest_data$label <- factor(
@@ -221,9 +259,13 @@ forest_data$label <- factor(
                  "Tao – OS", "Tao – PFI"))
 )
 
-forest_data$p_label <- paste0("p = ", forest_data$p_val)
+forest_data$p_label <- ifelse(
+  forest_data$p_holm < 0.001,
+  "Holm P < 0.001",
+  paste0("Holm P = ", sprintf("%.3f", forest_data$p_holm))
+)
 
-ggplot(forest_data, aes(x = HR, y = label)) +
+figure7 <- ggplot(forest_data, aes(x = HR, y = label)) +
   # reference line
   geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
   # CI bars
@@ -232,18 +274,24 @@ ggplot(forest_data, aes(x = HR, y = label)) +
   # HR point
   geom_point(aes(color = sig, shape = sig), size = 3.5) +
   # p-value labels on right
-  geom_text(aes(x = 1.08, label = p_label), hjust = 0, size = 3.2, color = "grey30") +
+  geom_text(aes(x = 1.04, label = p_label), hjust = 0,
+            size = 3.2, color = "grey30") +
   scale_color_manual(values = c("TRUE" = "#2166AC", "FALSE" = "#999999"),
-                     labels = c("TRUE" = "p < 0.05", "FALSE" = "p ≥ 0.05")) +
+                     labels = c("TRUE" = "Holm P < 0.05",
+                                "FALSE" = "Holm P ≥ 0.05")) +
   scale_shape_manual(values = c("TRUE" = 16, "FALSE" = 1),
-                     labels = c("TRUE" = "p < 0.05", "FALSE" = "p ≥ 0.05")) +
+                     labels = c("TRUE" = "Holm P < 0.05",
+                                "FALSE" = "Holm P ≥ 0.05")) +
   # dataset separator lines
   geom_hline(yintercept = c(2.5, 4.5), linetype = "dotted", color = "grey70") +
   # dataset labels on left margin
   annotate("text", x = 0.47, y = 6.3, label = "Drews",   fontface = "bold", size = 3.5, hjust = 0) +
   annotate("text", x = 0.47, y = 4.3, label = "Steele", fontface = "bold", size = 3.5, hjust = 0) +
   annotate("text", x = 0.47, y = 2.3, label = "Tao",    fontface = "bold", size = 3.5, hjust = 0) +
-  scale_x_continuous(limits = c(0.45, 1.20), breaks = c(0.5, 0.6, 0.7, 0.8, 0.9, 1.0)) +
+  scale_x_continuous(
+    limits = c(0.45, 1.30),
+    breaks = c(0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+  ) +
   labs(
     title    = "Cluster 2 vs Cluster 1 – stratified Cox (adjusted for tumor type, age, purity)",
     x        = "Hazard Ratio (95% CI)",
@@ -256,4 +304,6 @@ ggplot(forest_data, aes(x = HR, y = label)) +
     panel.grid.major.x = element_line(color = "grey90"),
     plot.title = element_text(size = 11)
   )
+
+figure7
 ```
