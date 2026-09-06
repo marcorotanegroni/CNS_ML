@@ -100,8 +100,6 @@ rather than duplicated in this repository.
 The processed datasets are available from Zenodo:
 https://doi.org/10.5281/zenodo.20617051.
 
-The manuscript citation will be added after publication.
-
 ## License
 
 Code and analysis notebooks are licensed under the
