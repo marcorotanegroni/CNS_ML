@@ -1,8 +1,7 @@
 # CNS_ML
 
-Analysis code and processed data for the manuscript **From Genomic Instability
-to Prognosis: Copy Number Signature Clusters as Predictive Biomarkers Across
-Tumors**.
+Analysis code and processed data for the manuscript **Pan-cancer benchmarking reveals complementary copy
+number signatures with distinct multi-omic predictability**.
 
 The repository contains the analysis notebooks, processed inputs, and figure
 outputs used in the paper. Raw TCGA data and source files from the three copy
