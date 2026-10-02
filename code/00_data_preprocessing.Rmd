@@ -159,16 +159,6 @@ un_tumor_finale<-ordinata[exp_INT, , drop = FALSE]
 
 # Expression and methylation filtering
 
-The positional Drews indices below are retained from an older preprocessing
-example. The actual Zenodo `ordinata` checkpoint has 15,976 expression columns
-followed by 13,674 methylation columns. All 21,880 retained omic predictors in
-the final Drews matrix map to this checkpoint (12,653 expression and 9,227
-methylation), with proportional values verified across 80 patients. Thus the
-larger counts in the older example are not evidence of missing model predictors.
-Do not apply those old positional indices to the distributed checkpoint.
-Analysis B in `06_prediction_revision.Rmd` uses the verified archive layout and
-refits filtering inside the training folds; analysis A preserves the final matrices.
-
 The pan-cancer expression and methylation matrices were first restricted to
 samples represented in the selected signature compendium. Features in the
 lowest 20% of the coefficient-of-variation distribution were removed
