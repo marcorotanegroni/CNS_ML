@@ -379,3 +379,45 @@ figure4<-ggarrange(
 
 figure4
 ```
+
+## Binary concordance sensitivity and composition of observed agreements
+
+The Figure 4 patient-state Jaccard counts both concordant active and concordant
+inactive classifications. It therefore describes overall binary state agreement;
+shared inactivity can produce high values for sparse signatures. The additional
+analysis below reports the active-active and inactive-inactive shares among
+concordant patients: `n11/(n11+n00)` and `n00/(n11+n00)`. The denominator is the
+number of observed agreements for each pair. These complementary shares sum
+to one when defined and explain the composition of overall agreement; they
+must be interpreted alongside the original Jaccard and concordant counts.
+
+The original zero/median rule uses each complete compendium as its threshold
+reference, before restriction to matched patients. This is an operational
+discretization: it distinguishes detectable exposure for zero-median signatures
+and relatively high exposure for positive-median signatures. It does not define
+a shared biological activation threshold. Sensitivity analyses use the
+25th/50th/75th percentiles of strictly positive exposures in each complete
+compendium. All comparisons retain the same matched patients.
+Positive-exposure quantiles perturb sparse signatures whose
+unconditional quantiles can remain zero; achieved prevalences are reported
+because ties can change the fraction classified as active.
+
+```{r binary-concordance-sensitivity, message=FALSE}
+source("revision/01_binary_concordance.R")
+binary_sensitivity <- run_binary_concordance(
+  input_path = "../data/processed/signature_exploration_data.RData",
+  output_dir = "../results/revision/binary_concordance"
+)
+```
+
+The script exports pair-level results, threshold and prevalence tables, rank
+stability summaries, and figures with a fixed signature order across metrics
+and thresholds. When no patients agree, both agreement shares are undefined
+and recorded as `NA`; the overall patient-state Jaccard is zero.
+
+```{r binary-concordance-supplementary-figures, out.width="100%"}
+knitr::include_graphics(file.path(
+  "../results/revision/binary_concordance",
+  c("state_agreement_components.png", "threshold_sensitivity_high_activity.png")
+))
+```
