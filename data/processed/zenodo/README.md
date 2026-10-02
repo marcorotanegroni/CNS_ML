@@ -25,3 +25,10 @@ Contains `ordinata`, the harmonized pan-cancer expression and methylation
 matrix (8,988 x 29,650).
 
 DOI: https://doi.org/10.5281/zenodo.20617051
+
+The revision notebook `code/06_prediction_revision.Rmd` also accepts these files
+in the repository root, with configurable paths. Both filenames are ignored by
+Git at any directory depth. The adapter verifies the archive checksums:
+
+- `final_matrices.RData`: MD5 `cd14cf9fd5eef77e3ea35d4022283eb5`.
+- `exp_meth_post_normalization.RData`: MD5 `35574218fed4aad02c1557461be95c91`.

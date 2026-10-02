@@ -1,0 +1,198 @@
+---
+title: "Predictive benchmark: split stability and preprocessing"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+Questo notebook contiene **due analisi indipendenti**. La prima risponde alla
+richiesta di stabilità rispetto allo split; la seconda affronta separatamente
+il preprocessing nel training. Hanno comandi di avvio, input e cartelle dei
+risultati distinti. Gli F1 si riferiscono ai target Cluster 1 contro Cluster 2
+specifici dei compendi, con Cluster 1 positiva, e non ne misurano la validità
+biologica relativa.
+
+## Configurazione in RStudio
+
+Per il **secondo major del revisore 1**, impostare solo
+`RUN_SPLIT_STABILITY <- TRUE`, lasciando `RUN_TRAINING_FOLD <- FALSE`.
+Poi eseguire i blocchi in ordine oppure usare **Knit**. Con entrambi i valori
+`FALSE`, il documento mostra soltanto eventuali risultati già salvati.
+
+```{r setup, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = TRUE)
+candidates <- c(getwd(), file.path(getwd(), ".."), file.path(getwd(), "../.."))
+is_repo <- vapply(candidates, function(p) {
+  file.exists(file.path(p, "code/revision/05_prediction_workflow.R"))
+}, logical(1))
+if (!any(is_repo)) stop("Impostare la working directory alla cartella CNS_ML.")
+PROJECT_DIR <- normalizePath(candidates[which(is_repo)[1]])
+
+RUN_SPLIT_STABILITY <- FALSE
+RUN_TRAINING_FOLD <- FALSE
+FINAL_RDATA <- file.path(PROJECT_DIR, "final_matrices.RData")
+NORMALIZED_RDATA <- file.path(PROJECT_DIR, "exp_meth_post_normalization.RData")
+OUTPUT_SPLIT <- file.path(PROJECT_DIR, "results/revision/prediction/split_stability")
+OUTPUT_PREPROCESSING <- file.path(PROJECT_DIR, "results/revision/prediction/training_fold")
+FRAMEWORKS <- c("Drews", "Steele", "Tao")
+N_SPLITS <- 20L
+SPLIT_SEEDS <- 20261001L + seq_len(N_SPLITS) - 1L
+INNER_FOLDS <- 10L
+N_BOOTSTRAP <- 2000L
+THREADS <- 2L
+
+source(file.path(PROJECT_DIR, "code/revision/05_prediction_workflow.R"))
+```
+
+Servono `caret`, `xgboost`, `digest`, `ggplot2`, `knitr` e `rmarkdown`. Non vengono
+installati pacchetti né scaricati dati automaticamente. Prima di leggere i file
+grandi viene eseguito un piccolo controllo della compatibilità di XGBoost:
+verifica che la selezione di 1, 2 e 3 iterazioni produca le predizioni attese.
+Le versioni da 2.1.0 hanno cambiato la convenzione dell'estremo finale di
+`iterationrange`; lo script gestisce entrambe le convenzioni.
+
+I 20 split e i 2.000 bootstrap sono scelte fissate per questa analisi, non numeri
+prescritti dal revisore. Mantenerli fissati prima di esaminare gli F1. Si possono
+eseguire i compendi separatamente modificando `FRAMEWORKS`. L'elaborazione è
+impegnativa anche con 64 GB di RAM: ogni split comprende una CV a 10 fold con la
+griglia XGBoost documentata nella repo. Viene elaborato un compendio alla volta.
+
+## A. Stabilità dello split: matrice finale originale
+
+Questa sezione richiede **solo `final_matrices.RData`**, oltre al file dei cluster
+presente nella repo. Parte dalla stessa matrice dei predittori disponibile prima
+della suddivisione 80/20 originale. Non carica `normalized`, non riseleziona le
+variabili e non ne modifica la riscalatura.
+
+- Ripete lo split **80/20 stratificato per tipo tumorale**.
+- All'interno di ogni nuovo training seleziona gli iperparametri con CV a 10 fold
+  stratificata per classe. La selezione usa Accuracy, come il valore predefinito
+  nel codice originale; l'esito principale sul test resta F1.
+- Rifitta il modello selezionato sul training e produce le predizioni sul test.
+- Per ogni test calcola un intervallo bootstrap percentile al 95%, ricampionando
+  i pazienti e le coppie osservato/predetto entro ciascun tipo tumorale.
+
+Si conservano i cluster archiviati e i pazienti dei cluster 1 e 2. Tipo tumorale,
+identificativi e attività della signature usata come target originario sono
+esclusi dai predittori. Età, purezza e gli altri predittori restano quelli della
+matrice finale. Ogni strato tumorale con almeno due pazienti contribuisce sia a
+training sia a test; eventuali singleton restano nel training e sono segnalati.
+
+**Interpretazione:** questa analisi misura la stabilità rispetto allo split,
+condizionatamente al preprocessing originale. Non risolve la distinta richiesta
+sui filtri calcolati prima dello split.
+
+```{r run-split-stability}
+if (RUN_SPLIT_STABILITY) {
+  results_split <- run_prediction_revision(
+    project_dir = PROJECT_DIR, final_path = FINAL_RDATA,
+    output_dir = OUTPUT_SPLIT, frameworks = FRAMEWORKS,
+    seeds = SPLIT_SEEDS, inner_folds = INNER_FOLDS,
+    n_boot = N_BOOTSTRAP, threads = THREADS,
+    input_mode = "archived_final"
+  )
+} else {
+  message("Analisi A non avviata: RUN_SPLIT_STABILITY = FALSE.")
+}
+```
+
+### Risultati A
+
+```{r results-split, echo=FALSE, fig.width=12, fig.height=4.5}
+report_split <- prediction_revision_report(OUTPUT_SPLIT, FRAMEWORKS)
+if (is.null(report_split)) {
+  cat("Non sono ancora presenti risultati dell'analisi A.\n")
+} else {
+  cat("Compendi completati: ", paste(report_split$available_frameworks, collapse = ", "), ".\n\n", sep = "")
+  print(knitr::kable(report_split$summary, digits = 3,
+    caption = "Analisi A: F1 fra split, con la matrice finale originale."))
+  if (!is.null(report_split$plot)) print(report_split$plot)
+}
+```
+
+## B. Preprocessing dentro il training: analisi separata
+
+Questa sezione affronta la richiesta del revisore 2 e rimane disattivata finché
+non si decide di eseguirla. Richiede **entrambi i file RData di Zenodo**.
+
+Espressione e metilazione vengono riprese dalla matrice normalizzata precedente
+ai filtri. Nel training di ciascun fold si eliminano le variabili non finite o
+costanti, il 20% con coefficiente di variazione più basso separatamente per le
+due modalità e le variabili ridondanti con correlazione assoluta superiore a
+0,90 nel blocco espressione/metilazione. Si stima la riscalatura RMS sul training.
+Si applicano alla validazione le colonne e i fattori così selezionati. Dopo la
+CV, filtri e modello vengono stimati sull'intero training esterno e applicati al
+test. Le correlazioni vengono calcolate a blocchi per ridurre la memoria.
+
+Le annotazioni cliniche e i predittori di mutazione/pathway provengono dalle
+matrici finali. La nuova RMS sul training cancella la precedente riscalatura
+moltiplicativa di queste variabili. La normalizzazione archiviata, l'aggregazione
+delle mutazioni e i cluster restano quelli dello studio. Valori mancanti
+incontrati soltanto in validazione/test vengono passati a XGBoost senza stimare
+filtri o imputazioni sul test.
+
+La matrice normalizzata ha 15.976 variabili di espressione e 13.674 di metilazione.
+Tutti i predittori omici delle matrici finali vi trovano corrispondenza; i valori
+sono stati verificati a meno della riscalatura su 80 pazienti per compendio.
+Questo include tutte le 21.880 variabili Drews e supporta che i conteggi maggiori
+nel vecchio esempio siano un disallineamento della documentazione.
+
+**Interpretazione:** i risultati di B restano distinti da A. Un cambiamento
+rispetto agli F1 originali non andrà attribuito soltanto alla divisione train/test.
+
+```{r run-training-fold}
+if (RUN_TRAINING_FOLD) {
+  results_preprocessing <- run_prediction_revision(
+    project_dir = PROJECT_DIR, final_path = FINAL_RDATA,
+    normalized_path = NORMALIZED_RDATA,
+    output_dir = OUTPUT_PREPROCESSING, frameworks = FRAMEWORKS,
+    seeds = SPLIT_SEEDS, inner_folds = INNER_FOLDS,
+    n_boot = N_BOOTSTRAP, threads = THREADS,
+    input_mode = "training_fold"
+  )
+} else {
+  message("Analisi B non avviata: RUN_TRAINING_FOLD = FALSE.")
+}
+```
+
+### Risultati B
+
+```{r results-training-fold, echo=FALSE, fig.width=12, fig.height=4.5}
+report_preprocessing <- prediction_revision_report(OUTPUT_PREPROCESSING, FRAMEWORKS)
+if (is.null(report_preprocessing)) {
+  cat("Non sono ancora presenti risultati dell'analisi B.\n")
+} else {
+  cat("Compendi completati: ", paste(report_preprocessing$available_frameworks, collapse = ", "), ".\n\n", sep = "")
+  print(knitr::kable(report_preprocessing$summary, digits = 3,
+    caption = "Analisi B: F1 fra split, con preprocessing stimato nel training."))
+  if (!is.null(report_preprocessing$plot)) print(report_preprocessing$plot)
+}
+```
+
+## Risultati salvati e ripresa
+
+Le due cartelle sono separate. In ognuna `F1_across_splits.csv` descrive media,
+deviazione standard, mediana e range fra split; non è un intervallo di confidenza
+della media. `F1_per_split_with_bootstrap.csv` contiene gli F1 e i relativi
+intervalli bootstrap, condizionati a ciascun modello e alla composizione del test.
+Le predizioni ripetute dello stesso paziente non sono mai riunite come se fossero
+osservazioni indipendenti. Eventuali F1 bootstrap indefiniti vengono contati e
+l'intervallo interessato resta mancante, senza scartarli silenziosamente.
+
+Si salvano anche predizioni, assegnazioni train/test, parametri selezionati,
+risultati della CV e modelli. Ogni split completato ha un checkpoint: rilanciando
+si riparte dagli split mancanti. Uno split interrotto viene ricalcolato.
+Checkpoint incompatibili con dati, modalità, semi, codice o versioni software
+vengono rifiutati; per una corsa modificata usare una nuova cartella dei risultati.
+
+La precedente esecuzione interrotta al primo fold usava la cartella
+`results/revision/prediction/Drews`. Le due nuove sezioni usano sottocartelle
+diverse: non è necessario cancellare i vecchi file né riutilizzarli.
+
+Gli intervalli delle nuove predizioni non devono essere attribuiti agli F1
+storici 0,93, 0,80 e 0,24 senza le corrispondenti predizioni originali.
+
+```{r session, echo=FALSE}
+sessionInfo()
+```

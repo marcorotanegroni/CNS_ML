@@ -248,7 +248,55 @@ metrics_df.to_csv('../Results/name.csv', index = False)
 
 The same XGBoost workflow described above was applied to predict binary cluster
 membership using the final Drew, Steele, and Tao training and test datasets.
-The outcome variable was Cluster 1 versus Cluster 2.
+The outcome variable was Cluster 1 versus Cluster 2 within each compendium's
+previously defined clustering. These are different classification targets:
+identically numbered clusters do not represent a common biological label.
+Consequently, their F1 scores describe the predictability of the respective
+cluster assignments under this modeling workflow, rather than a ranking of the
+biological validity of the compendia.
+
+The manuscript specifies Cluster 1 as the positive class. The classification
+F1 extracted below is this positive-class F1, not the macro-F1 used in the
+separate Flexynesis evaluation example.
+
+Cross-validation for hyperparameter selection uses only the initial training
+set. It does not provide repeated evaluations on different outer held-out test
+sets: the historical headline F1 values come from one outer 80/20 partition.
+The training templates above and the submitted Methods specify 10-fold inner
+cross-validation.
+
+## Repeated-split and bootstrap utilities
+
+`revision/02_prediction_resampling.R` provides three independent utilities:
+
+- `pr_repeated_splits(patients, seeds)` assigns confirmed eligible patients to
+  repeated 80/20 cancer-type-stratified partitions. `patients` contains unique
+  `patient_id` and `cancer_type` columns. Each cancer type with at least two
+  patients contributes to both partitions; singleton types stay in training and
+  are flagged. The supplied seeds must be distinct. This does not reconstruct
+  the historical split from its seed alone.
+- `pr_f1(truth, predicted)` returns the confusion counts and Cluster 1 F1 using
+  explicit labels `1` and `2`.
+- `pr_bootstrap_test_f1(predictions, n_boot, seed)` computes a separate 95%
+  percentile bootstrap interval for each framework and split. Its input columns
+  are `framework`, `split_id`, `patient_id`, `cancer_type`, `truth`, and
+  `predicted`. Resampling preserves each test set's cancer-type counts and keeps
+  observed/predicted labels paired. Repeated predictions of a patient across
+  splits are never pooled. Undefined bootstrap F1 values are counted; an
+  affected interval is returned as missing rather than silently omitting draws.
+
+These utility functions do not fit models. The complete revised workflow is
+provided in `06_prediction_revision.Rmd` and `revision/05_prediction_workflow.R`.
+It provides two independently enabled analyses with separate output folders:
+split stability using the unchanged final predictor matrices (`archived_final`),
+and preprocessing refitted within each training fold (`training_fold`). Only the
+second analysis restores expression/methylation from the normalized pre-filter
+archive. The first remains conditional on the original global feature selection.
+Both save predictions and bootstrap intervals for each new held-out split; the
+full repeated benchmark has not yet been run. Bootstrap intervals
+condition on the fitted model and test composition; variation across repeated
+fits is reported separately. Historical F1 intervals still require the original
+held-out predictions and cannot be inferred from these new fits.
 
 ## Performance extraction
 ```{r, eval=FALSE}
