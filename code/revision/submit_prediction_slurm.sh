@@ -4,7 +4,8 @@
 # Optional: MAIL=address for end/failure e-mails; FRAMEWORKS="Tao" for a subset;
 #           CPUS (default 32) and MEM (default 64gb) per job; NODE=xen7 to run
 #           every job on one node (then e.g. CPUS=20 fits the three main tunings
-#           together on 64 cores).
+#           together on 64 cores); NODE_CHECK and CPUS_CHECK send the split-1
+#           check tunings to another node, e.g. NODE_CHECK=xen5 CPUS_CHECK=12.
 # Per framework: tuning on split 0, then evaluation of split 0 + 20 repeated
 # splits (starts automatically when that tuning succeeds); the check tuning on
 # split 1 is independent. Main tunings are submitted first so that they start
@@ -31,8 +32,11 @@ for f in $FRAMEWORKS; do
   echo "$f: evaluate = $eval (after ${tune0[$i]})"
   waits+=("$eval"); i=$((i + 1))
 done
+check_opts=(--cpus-per-task="${CPUS_CHECK:-${CPUS:-32}}" --mem="${MEM:-64gb}")
+if [ -n "${MAIL:-}" ]; then check_opts+=(--mail-type=END,FAIL --mail-user="$MAIL"); fi
+if [ -n "${NODE_CHECK:-${NODE:-}}" ]; then check_opts+=(--nodelist="${NODE_CHECK:-$NODE}"); fi
 for f in $FRAMEWORKS; do
-  tune1=$(sbatch --parsable "${opts[@]}" --job-name="tune1_$f" "$job" --framework "$f" \
+  tune1=$(sbatch --parsable "${check_opts[@]}" --job-name="tune1_$f" "$job" --framework "$f" \
     --step tune --tune_split 1)
   echo "$f: tune split 1 = $tune1"
   waits+=("$tune1")

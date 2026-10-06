@@ -59,6 +59,8 @@ automatically when that tuning succeeds) and the check tuning on split 1 (in
 parallel), plus a final report job. Each job uses 32 CPUs and 64 GB by default
 (`CPUS`, `MEM`); `NODE=xen7` keeps every job on one node (with `CPUS=20` the
 three main tunings run together on 64 cores, and are submitted first),
+`NODE_CHECK=xen5 CPUS_CHECK=12` runs the split-1 check tunings on a second
+node,
 `FRAMEWORKS="Tao"` submits a subset and `MAIL=address` adds end/failure
 e-mails. Monitor with `squeue -u $USER`; logs are in
 `logs/slurm_*.out`, with a timestamp on every inner CV fold.
