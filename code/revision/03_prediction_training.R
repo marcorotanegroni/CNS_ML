@@ -314,11 +314,12 @@ pt_tune_once <- function(prepared, manifest, output_dir, grid = pt_default_grid(
   grid <- pt_validate_grid(grid)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   best_path <- file.path(output_dir, "best_parameters.csv")
+  train <- manifest$patient_id[manifest$partition == "train"]
   if (file.exists(best_path)) {
+    pt_check_tuning(output_dir, train, grid, inner_folds, seed)
     message("Tuning already completed: ", best_path)
     return(utils::read.csv(best_path))
   }
-  train <- manifest$patient_id[manifest$partition == "train"]
   truth <- prepared$patients$truth[match(train, prepared$patients$patient_id)]
   started <- Sys.time()
   message("tree_method: ", getOption("cnsml.xgb_tree_method", "auto"))
@@ -330,10 +331,42 @@ pt_tune_once <- function(prepared, manifest, output_dir, grid = pt_default_grid(
                      "; tree_method:", getOption("cnsml.xgb_tree_method", "auto")),
                paste("Started:", started, "; finished:", Sys.time()),
                paste("Range of mean CV accuracy across the grid:",
-                     paste(signif(range(tuning$cv_results$mean_accuracy), 4), collapse = " - "))),
+                     paste(signif(range(tuning$cv_results$mean_accuracy), 4), collapse = " - ")),
+               paste("Training IDs hash:", pt_hash(sort(train))),
+               paste("Grid hash:", pt_hash(grid))),
              file.path(output_dir, "tuning_notes.txt"))
   utils::write.csv(tuning$best_parameters, best_path, row.names = FALSE)
   tuning$best_parameters
+}
+
+# A saved tuning result is reused only if it was obtained with the same
+# training patients, folds, seed and tree method (and, when recorded, the
+# same grid). Settings are read from tuning_notes.txt.
+pt_check_tuning <- function(output_dir, train, grid = pt_default_grid(),
+                            inner_folds = 10L, seed = 1234L) {
+  notes_path <- file.path(output_dir, "tuning_notes.txt")
+  if (!file.exists(notes_path)) stop("Saved tuning has no tuning_notes.txt: ", output_dir)
+  notes <- readLines(notes_path)
+  field <- function(pattern) {
+    line <- grep(pattern, notes, value = TRUE)
+    if (length(line)) trimws(sub(paste0(".*", pattern), "", line[1])) else NA_character_
+  }
+  # e.g. "Inner folds: 10 ; seed: 1234 ; threads: 4 ; tree_method: hist"
+  settings <- grep("^Inner folds:", notes, value = TRUE)[1]
+  setting <- function(key) trimws(sub(paste0(".*", key, ":\\s*([^;]+).*"), "\\1", settings))
+  checks <- c(
+    training_patients = identical(field("Training patients:"), as.character(length(train))),
+    inner_folds = identical(setting("Inner folds"), as.character(inner_folds)),
+    seed = identical(setting("seed"), as.character(seed)),
+    tree_method = identical(setting("tree_method"), getOption("cnsml.xgb_tree_method", "auto")))
+  ids <- field("Training IDs hash:"); grid_hash <- field("Grid hash:")
+  if (!is.na(ids)) checks["training_ids"] <- identical(ids, pt_hash(sort(train)))
+  if (!is.na(grid_hash)) checks["grid"] <- identical(grid_hash, pt_hash(pt_validate_grid(grid)))
+  if (!all(checks)) {
+    stop("Saved tuning in ", output_dir, " does not match the current settings (",
+         paste(names(checks)[!checks], collapse = ", "), "). Use a new output directory.")
+  }
+  invisible(TRUE)
 }
 
 pt_atomic_save <- function(value, path) {
@@ -494,9 +527,17 @@ pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
   # Across-split summaries describe the repeated splits; the reconstructed
   # historical split 0, when present, is reported separately in split_metrics.
   repeated <- metrics[metrics$split_id != "0", , drop = FALSE]
-  summarise <- function(v) c(mean = mean(v), sd = if (length(v) > 1L) stats::sd(v) else NA_real_,
-                             median = stats::median(v), q025 = unname(stats::quantile(v, .025)),
-                             q975 = unname(stats::quantile(v, .975)), min = min(v), max = max(v))
+  # Undefined values (e.g. MCC when every prediction is in one class) are
+  # excluded from the summaries and counted.
+  summarise <- function(v) {
+    n_undefined <- sum(is.na(v)); v <- v[!is.na(v)]
+    if (!length(v)) return(c(mean = NA, sd = NA, median = NA, q025 = NA, q975 = NA,
+                             min = NA, max = NA, n_undefined = n_undefined))
+    c(mean = mean(v), sd = if (length(v) > 1L) stats::sd(v) else NA_real_,
+      median = stats::median(v), q025 = unname(stats::quantile(v, .025)),
+      q975 = unname(stats::quantile(v, .975)), min = min(v), max = max(v),
+      n_undefined = n_undefined)
+  }
   summary <- data.frame(framework = framework, n_splits = nrow(repeated),
     do.call(cbind, lapply(c("f1", "auroc", "average_precision", "mcc", "balanced_accuracy"),
       function(metric) {

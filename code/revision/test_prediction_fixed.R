@@ -59,6 +59,23 @@ prepared$feature_map <- data.frame(feature = colnames(x), source_name = c("age",
                                    feature_type = "other")
 dropped <- pi_drop_features(prepared, "purity")
 stopifnot(!"f2" %in% colnames(dropped$x), ncol(dropped$x) == 5L)
+# Average precision does not depend on the order of tied probabilities and
+# matches the step-wise definition on a hand-computed example.
+y <- c("1", "2", "1", "2", "1"); pr <- c(.9, .5, .5, .5, .1)
+m1 <- pr_classification_metrics(y, pr, ifelse(pr >= .5, "1", "2"))
+o <- c(1, 4, 3, 2, 5)
+m2 <- pr_classification_metrics(y[o], pr[o], ifelse(pr[o] >= .5, "1", "2"))
+stopifnot(isTRUE(all.equal(m1$average_precision, m2$average_precision)),
+          isTRUE(all.equal(m1$average_precision, 1 / 3 * 1 + 1 / 3 * (2 / 4) + 1 / 3 * (3 / 5))))
+# Predictions all in one class: MCC is undefined but summaries still export.
+one_class <- pr_classification_metrics(c("1", "2", "2"), c(.2, .3, .1), c("2", "2", "2"))
+stopifnot(is.na(one_class$mcc))
+fixed_low <- fixed; fixed_low$nrounds <- 1L; fixed_low$eta <- 1e-6
+res_one <- pt_run_prediction(prepared, "synthetic", tempfile(), n_boot = 20L, threads = 1L,
+                             preprocessing = "archived_final", manifests = manifests,
+                             fixed_parameters = fixed_low)
+stopifnot(nrow(res_one$split_summary) == 1L)
+
 # One-off tuning on two different splits and the report's tuning comparison.
 source("code/revision/07_prediction_run.R")
 small_grid <- expand.grid(nrounds = c(3L, 6L), eta = .3, max_depth = c(1L, 2L), gamma = 0,
@@ -72,7 +89,25 @@ for (split in c("0", "1")) {
   stopifnot(nrow(best) == 1L)
 }
 again <- pt_tune_once(prepared, manifests[manifests$split_id == "0", ],
-                      file.path(root, "tuning", "synthetic", "split_0"), grid = small_grid)
+                      file.path(root, "tuning", "synthetic", "split_0"), grid = small_grid,
+                      inner_folds = 3L)
+# Saved tuning is not reused under different settings.
+old_method <- getOption("cnsml.xgb_tree_method"); options(cnsml.xgb_tree_method = "exact")
+stopifnot(inherits(try(pt_tune_once(prepared, manifests[manifests$split_id == "0", ],
+                                    file.path(root, "tuning", "synthetic", "split_0"),
+                                    grid = small_grid, inner_folds = 3L), silent = TRUE), "try-error"),
+          inherits(try(pt_check_tuning(file.path(root, "tuning", "synthetic", "split_0"),
+                                       manifests$patient_id[manifests$split_id == "1" &
+                                                              manifests$partition == "train"],
+                                       small_grid, 3L), silent = TRUE), "try-error"))
+options(cnsml.xgb_tree_method = old_method)
+# Notes written before hashes were recorded (current workstation run) pass the basic checks.
+legacy <- tempfile("legacy-tuning-"); dir.create(legacy)
+train0 <- manifests$patient_id[manifests$split_id == "0" & manifests$partition == "train"]
+writeLines(c(paste("Training patients:", length(train0)),
+             "Inner folds: 10 ; seed: 1234 ; threads: 4 ; tree_method: auto"),
+           file.path(legacy, "tuning_notes.txt"))
+stopifnot(isTRUE(pt_check_tuning(legacy, train0)))
 file.copy(file.path(out), root, recursive = TRUE)
 dir.create(file.path(root, "archived"))
 file.rename(file.path(root, basename(out)), file.path(root, "archived", "synthetic"))
@@ -83,4 +118,5 @@ stopifnot(nrow(comparison) == 2L, setequal(comparison$tuned_on, c("split_0", "sp
 unlink(c(out, root), recursive = TRUE)
 cat("Fixed-parameter workflow passed: split 0 reconstruction, supplied manifests,",
     "single fit per split, extra metrics, thread-independent resume, missing-value mode,",
-    "split-0/split-1 tuning and report.\n")
+    "split-0/split-1 tuning and report, tie-invariant average precision,",
+    "undefined MCC, tuning provenance checks.\n")

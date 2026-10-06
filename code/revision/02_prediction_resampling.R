@@ -176,7 +176,8 @@ pr_original_split <- function(archive_frame, eligible_ids, seed = 1234L,
 
 # Threshold-free and prevalence-aware companions to the positive-class F1.
 # AUROC uses the Mann-Whitney rank formulation; average precision is the
-# step-wise area under the precision-recall curve. The trivial F1 is the F1 of a
+# step-wise area under the precision-recall curve. MCC is NA when all
+# predictions fall in one class. The trivial F1 is the F1 of a
 # classifier that labels every patient Cluster 1, i.e. 2p / (1 + p).
 pr_classification_metrics <- function(truth, probability, predicted) {
   truth <- as.character(truth); predicted <- as.character(predicted)
@@ -187,10 +188,15 @@ pr_classification_metrics <- function(truth, probability, predicted) {
   n_pos <- sum(positive); n_neg <- sum(!positive)
   ranks <- rank(probability)
   auroc <- if (n_pos && n_neg) (sum(ranks[positive]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg) else NA_real_
+  # Average precision over distinct score thresholds (tied probabilities form
+  # one step), so the value does not depend on the order of tied patients.
   ord <- order(-probability)
-  hits <- positive[ord]
-  precision <- cumsum(hits) / seq_along(hits)
-  average_precision <- if (n_pos) sum(precision[hits]) / n_pos else NA_real_
+  score <- probability[ord]; hits <- positive[ord]
+  last <- which(c(diff(score) != 0, TRUE))
+  tp_at <- cumsum(hits)[last]; fp_at <- cumsum(!hits)[last]
+  average_precision <- if (n_pos) {
+    sum(diff(c(0, tp_at / n_pos)) * tp_at / (tp_at + fp_at))
+  } else NA_real_
   counts <- pr_f1(truth, predicted)
   tp <- as.numeric(counts$tp); fp <- as.numeric(counts$fp)
   fn <- as.numeric(counts$fn); tn <- as.numeric(counts$tn)

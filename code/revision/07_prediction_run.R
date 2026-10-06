@@ -104,6 +104,8 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   fixed <- if (!is.null(opt$params)) pr_parse_params(opt$params) else {
     best_path <- file.path(tuning_dir, "split_0", "best_parameters.csv")
     if (!file.exists(best_path)) stop("Run --step tune for ", framework, " first.")
+    pt_check_tuning(dirname(best_path),
+                    manifests$patient_id[manifests$split_id == "0" & manifests$partition == "train"])
     utils::read.csv(best_path)
   }
   fixed <- fixed[, names(pt_default_grid()), drop = FALSE]
@@ -192,7 +194,8 @@ pr_report <- function(root) {
     x <- utils::read.csv(f, colClasses = c(split_id = "character"))
     cbind(variant = basename(dirname(dirname(f))), x)
   }))
-  q <- function(v, p) unname(stats::quantile(v, p))
+  q <- function(v, p) unname(stats::quantile(v, p, na.rm = TRUE))
+  med <- function(v) stats::median(v, na.rm = TRUE)
   rows <- split(metrics, list(metrics$variant, metrics$framework), drop = TRUE)
   summary <- do.call(rbind, lapply(rows, function(x) {
     s0 <- x[x$split_id == "0", ]; r <- x[x$split_id != "0", ]
@@ -200,12 +203,13 @@ pr_report <- function(root) {
                prevalence_cluster1 = mean(x$prevalence_cluster1), trivial_f1 = mean(x$trivial_f1),
                split0_f1 = if (nrow(s0)) s0$f1 else NA, split0_f1_lower = if (nrow(s0)) s0$f1_lower_95 else NA,
                split0_f1_upper = if (nrow(s0)) s0$f1_upper_95 else NA,
-               n_repeated = nrow(r), median_f1 = stats::median(r$f1),
+               n_repeated = nrow(r), median_f1 = med(r$f1),
                f1_q025 = q(r$f1, .025), f1_q975 = q(r$f1, .975),
-               median_auroc = stats::median(r$auroc), auroc_q025 = q(r$auroc, .025),
+               median_auroc = med(r$auroc), auroc_q025 = q(r$auroc, .025),
                auroc_q975 = q(r$auroc, .975),
-               median_average_precision = stats::median(r$average_precision),
-               median_mcc = stats::median(r$mcc), median_balanced_accuracy = stats::median(r$balanced_accuracy))
+               median_average_precision = med(r$average_precision),
+               median_mcc = med(r$mcc), n_undefined_mcc = sum(is.na(r$mcc)),
+               median_balanced_accuracy = med(r$balanced_accuracy))
   }))
   rownames(summary) <- NULL
   utils::write.csv(metrics, file.path(root, "all_split_metrics.csv"), row.names = FALSE)
