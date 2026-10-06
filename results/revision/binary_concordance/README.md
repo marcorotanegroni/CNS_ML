@@ -93,18 +93,15 @@ Use --no-plots to generate tables only.
 
 - state_agreement_components.png: patient-state Jaccard, inactive-inactive share of agreements and active-state Jaccard under the original rule, for all 58 and the 12 selected signatures.
 - threshold_sensitivity_principal_pairs.png: patient-state and active-state Jaccard of the 48 cross-compendium selected pairs under the four rules, with the pairs discussed in the manuscript and their ranks.
-- principal_pair_ranks.csv, top_pair_overlap.csv: ranks of principal pairs and top-5 pairs per rule and metric.
+- principal_pair_ranks.csv: rank of each pair discussed in the manuscript among the 48 selected cross-compendium pairs, per rule, for patient-state and active-state Jaccard.
 - pair_metrics.csv: raw counts, number of concordant patients, original Jaccard, agreement shares and marginal active prevalences for all 6,612 pair/rule combinations.
-- principal_pairs.csv: the four manuscript comparisons under each rule.
+- principal_pairs.csv: the four manuscript comparisons and the sparse example CN4/CN10 under each rule, with all counts and metrics.
 - thresholds.csv: exposure thresholds, reference populations, ties and achieved prevalences.
-- rank_stability.csv: Spearman correlations with the original rule over the 48 selected cross-compendium pairs (reference only).
 - provenance.txt and session_info.txt: input checksum, calculation conventions and software versions.
 
 All figures use a fixed blue scale from 0 to 1 and fixed signature ordering.
 The color mapping distinguishes low values rather than using the white plateau
 below 0.25 in the original Figure 4. The original figure calculation is retained.
-Earlier exploratory presentations are stored locally under the Git-ignored
-revision_private directory and are not part of the selected revision outputs.
 
 Validation reproduces the original binary matrix exactly and independently
 checks the counts, patient-state Jaccard and agreement shares, including the

@@ -23,15 +23,3 @@
 "active_jaccard","positive_q75","CN1_Sig1","CN1/Sig1",0.161248374512354,11,48
 "active_jaccard","positive_q75","CN1_Sig2","CN1/Sig2",0.165354330708661,10,48
 "active_jaccard","positive_q75","CX1_CN1","CN1/CX1",0.19479653102068,7,48
-"cohen_kappa","original","CN1_Sig1","CN1/Sig1",0.72468300109575,1,48
-"cohen_kappa","original","CN1_Sig2","CN1/Sig2",0.655314183401809,2,48
-"cohen_kappa","original","CX1_CN1","CN1/CX1",0.461467086761771,5,48
-"cohen_kappa","positive_q25","CN1_Sig1","CN1/Sig1",0.614459623491521,1,48
-"cohen_kappa","positive_q25","CN1_Sig2","CN1/Sig2",0.562853936704718,2,48
-"cohen_kappa","positive_q25","CX1_CN1","CN1/CX1",0.258311815658474,11,48
-"cohen_kappa","positive_q50","CN1_Sig1","CN1/Sig1",0.342953031090831,4,48
-"cohen_kappa","positive_q50","CN1_Sig2","CN1/Sig2",0.401355550628423,2,48
-"cohen_kappa","positive_q50","CX1_CN1","CN1/CX1",0.259233286253844,12,48
-"cohen_kappa","positive_q75","CN1_Sig1","CN1/Sig1",0.223574108063398,8,48
-"cohen_kappa","positive_q75","CN1_Sig2","CN1/Sig2",0.236671824206741,6,48
-"cohen_kappa","positive_q75","CX1_CN1","CN1/CX1",0.260103911563119,4,48

@@ -60,8 +60,14 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   pt_require_packages()
   pt_check_xgboost()
   framework <- opt$framework
-  final_path <- file.path(project_dir, "final_matrices.RData")
-  normalized_path <- file.path(project_dir, "exp_meth_post_normalization.RData")
+  # Zenodo inputs: data/processed/zenodo/ (as in the README) or repository root.
+  zenodo_file <- function(name) {
+    candidates <- file.path(project_dir, c("data/processed/zenodo", "."), name)
+    found <- candidates[file.exists(candidates)]
+    if (length(found)) found[1] else candidates[1]
+  }
+  final_path <- zenodo_file("final_matrices.RData")
+  normalized_path <- zenodo_file("exp_meth_post_normalization.RData")
   cluster_path <- file.path(project_dir, "data/processed/clustering_data.RData")
   ascat_path <- file.path(project_dir, "Metadata_TCGA_ASCAT_penalty70.rds")
   variants <- "archived"

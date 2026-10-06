@@ -166,8 +166,6 @@ the final Drews matrix map to this checkpoint (12,653 expression and 9,227
 methylation), with proportional values verified across 80 patients. Thus the
 larger counts in the older example are not evidence of missing model predictors.
 Do not apply those old positional indices to the distributed checkpoint.
-Analysis B in `06_prediction_revision.Rmd` uses the verified archive layout and
-refits filtering inside the training folds; analysis A preserves the final matrices.
 
 The pan-cancer expression and methylation matrices were first restricted to
 samples represented in the selected signature compendium. Features in the

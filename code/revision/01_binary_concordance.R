@@ -170,59 +170,27 @@ bc_pair_metrics <- function(binary, framework, rule) {
     stringsAsFactors = FALSE)
 }
 
-bc_stability <- function(pairs) {
-  baseline <- pairs[pairs$rule == "original", ]
-  result <- list()
-  for (rule in setdiff(unique(pairs$rule), "original")) {
-    alternative <- pairs[pairs$rule == rule, ]
-    stopifnot(identical(baseline$signature1, alternative$signature1),
-              identical(baseline$signature2, alternative$signature2))
-    include <- baseline$cross_framework & baseline$high_activity_pair
-    for (metric in c("state_jaccard", "active_jaccard", "cohen_kappa")) {
-      a <- baseline[[metric]][include]; b <- alternative[[metric]][include]
-      valid <- is.finite(a) & is.finite(b)
-      rho <- if (sum(valid) >= 2L && length(unique(a[valid])) > 1L &&
-                 length(unique(b[valid])) > 1L)
-        cor(a[valid], b[valid], method = "spearman") else NA_real_
-      result[[length(result) + 1L]] <- data.frame(
-        reference_rule = "original", alternative_rule = rule,
-        subset = "high_activity_cross_framework", metric = metric, n_pairs = sum(include),
-        n_comparable = sum(valid), n_undefined_reference = sum(!is.finite(a)),
-        n_undefined_alternative = sum(!is.finite(b)), spearman_rho = rho,
-        median_absolute_change = if (any(valid)) median(abs(b[valid] - a[valid])) else NA_real_)
-    }
-  }
-  do.call(rbind, result)
-}
-
 # Rank of each principal pair among the 48 cross-compendium pairs of the 12
-# selected signatures (1 = strongest), per rule and metric, and overlap of the
-# five strongest pairs with the original rule.
+# selected signatures (1 = strongest), per rule, for the patient-state and the
+# active-state Jaccard.
 bc_principal_ranks <- function(pairs, principal,
-                               metrics = c("state_jaccard", "active_jaccard", "cohen_kappa"),
-                               top_k = 5L) {
+                               metrics = c("state_jaccard", "active_jaccard")) {
   subset <- pairs[pairs$cross_framework & pairs$high_activity_pair, ]
   key <- function(a, b) paste(pmin(a, b), pmax(a, b), sep = "/")
   subset$pair <- key(subset$signature1, subset$signature2)
   wanted <- vapply(principal, function(x) key(x[1], x[2]), character(1))
-  ranks <- list(); overlap <- list()
+  ranks <- list()
   for (metric in metrics) {
-    reference_top <- NULL
     for (rule in unique(subset$rule)) {
       x <- subset[subset$rule == rule, ]
       x$rank <- rank(-x[[metric]], ties.method = "min", na.last = "keep")
-      top <- x$pair[order(x$rank)][seq_len(top_k)]
-      if (rule == "original") reference_top <- top
       hit <- x[x$pair %in% wanted, ]
       ranks[[length(ranks) + 1L]] <- data.frame(metric = metric, rule = rule,
         selection = names(wanted)[match(hit$pair, wanted)], pair = hit$pair,
         value = hit[[metric]], rank = hit$rank, n_pairs = nrow(x))
-      overlap[[length(overlap) + 1L]] <- data.frame(metric = metric, rule = rule,
-        top_k = top_k, top_pairs = paste(top, collapse = "; "),
-        shared_with_original = length(intersect(top, reference_top)))
     }
   }
-  list(ranks = do.call(rbind, ranks), top_overlap = do.call(rbind, overlap))
+  do.call(rbind, ranks)
 }
 
 bc_verify_metrics <- function(original) {
@@ -362,7 +330,6 @@ run_binary_concordance <- function(
   pairs <- do.call(rbind, lapply(rules, function(rule)
     bc_pair_metrics(analyses[[rule]]$binary, cohort$framework, rule)))
   rownames(thresholds) <- NULL; rownames(pairs) <- NULL
-  stability <- bc_stability(pairs)
   principal <- list(CN1_Sig1 = c("CN1", "Sig1"), CN1_Sig2 = c("CN1", "Sig2"),
                     CX1_CN1 = c("CX1", "CN1"), CN1_CN2 = c("CN1", "CN2"),
                     CN4_CN10 = c("CN4", "CN10"))
@@ -375,11 +342,8 @@ run_binary_concordance <- function(
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   write.csv(thresholds, file.path(output_dir, "thresholds.csv"), row.names = FALSE, na = "NA")
   write.csv(pairs, file.path(output_dir, "pair_metrics.csv"), row.names = FALSE, na = "NA")
-  write.csv(stability, file.path(output_dir, "rank_stability.csv"), row.names = FALSE, na = "NA")
   write.csv(selected, file.path(output_dir, "principal_pairs.csv"), row.names = FALSE, na = "NA")
-  write.csv(principal_ranks$ranks, file.path(output_dir, "principal_pair_ranks.csv"),
-            row.names = FALSE, na = "NA")
-  write.csv(principal_ranks$top_overlap, file.path(output_dir, "top_pair_overlap.csv"),
+  write.csv(principal_ranks, file.path(output_dir, "principal_pair_ranks.csv"),
             row.names = FALSE, na = "NA")
   all_order <- colnames(cohort$values)[hclust(dist(t(analyses$original$binary)), method = "complete")$order]
   high <- bc_high_activity_signatures()
@@ -407,7 +371,7 @@ run_binary_concordance <- function(
       print(all_components, vp = grid::viewport(layout.pos.row = 1, layout.pos.col = 1))
       print(high_components, vp = grid::viewport(layout.pos.row = 2, layout.pos.col = 1))
     }, finally = grDevices::dev.off())
-    sensitivity <- bc_plot_threshold_sensitivity(pairs, principal_ranks$ranks, rules)
+    sensitivity <- bc_plot_threshold_sensitivity(pairs, principal_ranks, rules)
     old_heatmap <- file.path(output_dir, "threshold_sensitivity_high_activity.png")
     if (file.exists(old_heatmap)) file.remove(old_heatmap)
     ggplot2::ggsave(file.path(output_dir, "threshold_sensitivity_principal_pairs.png"),
@@ -426,9 +390,7 @@ run_binary_concordance <- function(
     "State J = (n11+n00)/(n11+n00+2*(n10+n01)).",
     "Composition of observed agreements: active share = n11/(n11+n00); inactive share = n00/(n11+n00). Shares sum to 1 when defined.",
     "Active-state J = n11/(n11+n10+n01). Expected n11 = N*p1*p2 under independence of the two binary states; Cohen kappa uses the same marginal prevalences.",
-    "Rank stability summarizes the 48 cross-compendium pairs among the selected signatures, using finite pairs only.",
     "Principal-pair ranks are computed among the same 48 pairs (1 = strongest, ties share the minimum rank).",
-    "A constant vector or fewer than two comparable pairs yields NA for rank correlation.",
     "The selected 12 signatures reproduce Figure 4b; selection does not denote active-only agreement.",
     "Heatmap ordering uses complete-linkage clustering of Euclidean distances between original binary signature columns."),
     file.path(output_dir, "provenance.txt"))
@@ -436,7 +398,7 @@ run_binary_concordance <- function(
   message("Binary concordance outputs: ", normalizePath(output_dir),
           " (", nrow(cohort$values), " patients; ", ncol(cohort$values),
           " signatures; ", length(rules), " rules).")
-  invisible(list(thresholds = thresholds, pairs = pairs, stability = stability,
+  invisible(list(thresholds = thresholds, pairs = pairs,
                  principal_pairs = selected, principal_ranks = principal_ranks,
                  cohort = cohort, analyses = analyses))
 }

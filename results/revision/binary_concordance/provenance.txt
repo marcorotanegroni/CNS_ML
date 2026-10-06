@@ -10,8 +10,6 @@ Pairs with no concordant patients have undefined agreement shares (NA); an undef
 State J = (n11+n00)/(n11+n00+2*(n10+n01)).
 Composition of observed agreements: active share = n11/(n11+n00); inactive share = n00/(n11+n00). Shares sum to 1 when defined.
 Active-state J = n11/(n11+n10+n01). Expected n11 = N*p1*p2 under independence of the two binary states; Cohen kappa uses the same marginal prevalences.
-Rank stability summarizes the 48 cross-compendium pairs among the selected signatures, using finite pairs only.
 Principal-pair ranks are computed among the same 48 pairs (1 = strongest, ties share the minimum rank).
-A constant vector or fewer than two comparable pairs yields NA for rank correlation.
 The selected 12 signatures reproduce Figure 4b; selection does not denote active-only agreement.
 Heatmap ordering uses complete-linkage clustering of Euclidean distances between original binary signature columns.

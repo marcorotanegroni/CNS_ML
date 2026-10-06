@@ -66,7 +66,7 @@ documented stratified split and model code.
 | `code/03_survival_analysis.Rmd` | Kaplan-Meier curves, stratified Cox models, survival tables |
 | `code/04_machine_learning.Rmd` | Continuous signature prediction and cluster prediction models |
 | `code/05_methylation_batch_effect.Rmd` | Methylation platform harmonization, batch-effect checks, and Supplementary Figure 6 |
-| `code/06_prediction_revision.Rmd` | Repeated held-out cluster classification, training-fold preprocessing, and test-set bootstrap intervals |
+| `code/revision/` | Revision analyses: binary concordance sensitivity and repeated held-out cluster classification |
 
 ## Data
 
@@ -97,63 +97,39 @@ rather than duplicated in this repository.
 
 ### Binary concordance sensitivity
 
-The additional analysis in `code/revision/01_binary_concordance.R` reports
-the active-active and inactive-inactive shares among observed agreements,
-alongside the original patient-state Jaccard. It also repeats the comparison
-using three positive-exposure quantile thresholds. Run it from the
-repository root:
+`code/revision/01_binary_concordance.R` reports, alongside the original
+patient-state Jaccard, the active-active and inactive-inactive shares of the
+observed agreements and the active-state Jaccard. It repeats the comparison
+with three positive-exposure quantile thresholds. Run it from the repository
+root:
 
 ```bash
 Rscript code/revision/01_binary_concordance.R
 ```
 
-It uses the included `signature_exploration_data.RData` input and writes tables,
-figures, and run provenance to `results/revision/binary_concordance/`. The final
-section of notebook `01` runs the same analysis. The original Figure 4 calculation
-is retained for comparison.
+It uses the included `signature_exploration_data.RData` and writes tables,
+figures and provenance to `results/revision/binary_concordance/`. The final
+section of notebook `01` runs the same analysis; the original Figure 4
+calculation is retained.
 
-### Predictive benchmark resampling in RStudio
+### Repeated held-out cluster classification
 
-Open `code/06_prediction_revision.Rmd`. Its two analyses have separate run flags
-and output folders:
+`code/revision/07_prediction_run.R` evaluates the Cluster 1 versus Cluster 2
+classifiers on the reconstructed original train/test split (seed 1234) and on
+20 additional cancer-type-stratified 80/20 splits, with 95% bootstrap
+intervals of the test-set F1. Hyperparameters are selected once per framework
+by 10-fold cross-validation on the original training set, with the original
+grid, and held fixed. It requires `final_matrices.RData` from Zenodo, in
+`data/processed/zenodo/` or the repository root. On a workstation, inside
+`tmux`:
 
-- **A, split stability:** set `RUN_SPLIT_STABILITY <- TRUE` and leave
-  `RUN_TRAINING_FOLD <- FALSE`. This uses only `final_matrices.RData`, preserving
-  the original predictor values and selection without loading normalized omics.
-- **B, training-fold preprocessing:** set `RUN_TRAINING_FOLD <- TRUE` separately.
-  This additionally requires `exp_meth_post_normalization.RData` and refits
-  feature filtering and RMS scaling inside each training fold.
-
-Put the required Zenodo files in the repository root, or change their paths in
-the notebook. Run the chunks in order or knit the document. With both flags
-`FALSE`, it only displays saved results. Both analyses use 20 cancer-type-stratified
-80/20 splits, 10-fold inner CV, and 2,000 test-patient bootstrap replicates per
-split. The original documented XGBoost grid is retained. This is a substantial
-computation; the notebook explains memory requirements and checkpoint resume.
-
-The same workflow can be called from an R session whose working directory is
-the repository root:
-
-```r
-source("code/revision/05_prediction_workflow.R")
-run_prediction_revision(project_dir = getwd())
+```bash
+THREADS=4 bash code/revision/run_prediction_fixed.sh
 ```
 
-This call defaults to analysis A (`input_mode = "archived_final"`). Analysis B
-uses `input_mode = "training_fold"` with a separate output directory. The input
-adapter verifies checksums, patient matching and feature layout. A measures
-split stability conditional on the original globally selected predictors; B
-addresses training-only filtering. Their results must be interpreted separately.
-All retained expression/methylation features in the three final matrices map to
-the archived normalized input; their scaled values were checked on 80 patients
-per framework. A small XGBoost compatibility check runs before the large inputs
-are loaded.
-
-Notebook outputs go to `results/revision/prediction/split_stability/` and
-`results/revision/prediction/training_fold/`, respectively. Large inputs
-and fitted-model checkpoints are ignored by Git. No repeated-cohort F1 results
-have yet been generated in this revision; input validation and small synthetic
-end-to-end checks have passed.
+Details, outputs and run times are in
+[`results/revision/prediction/README.md`](results/revision/prediction/README.md).
+Synthetic checks: `Rscript code/revision/test_prediction_fixed.R`.
 
 ## Citation
 
