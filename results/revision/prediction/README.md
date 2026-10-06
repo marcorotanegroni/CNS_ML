@@ -57,8 +57,10 @@ bash code/revision/submit_prediction_slurm.sh
 Per framework this submits the tuning on split 0, the evaluation (started
 automatically when that tuning succeeds) and the check tuning on split 1 (in
 parallel), plus a final report job. Each job uses 32 CPUs and 64 GB by default
-(`CPUS`, `MEM`); `FRAMEWORKS="Tao"` submits a subset and `MAIL=address` adds
-end/failure e-mails. Monitor with `squeue -u $USER`; logs are in
+(`CPUS`, `MEM`); `NODE=xen7` keeps every job on one node (with `CPUS=20` the
+three main tunings run together on 64 cores, and are submitted first),
+`FRAMEWORKS="Tao"` submits a subset and `MAIL=address` adds end/failure
+e-mails. Monitor with `squeue -u $USER`; logs are in
 `logs/slurm_*.out`, with a timestamp on every inner CV fold.
 
 Without SLURM, `THREADS=4 bash code/revision/run_prediction_fixed.sh` runs the
