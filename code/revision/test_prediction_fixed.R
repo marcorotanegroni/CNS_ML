@@ -91,6 +91,26 @@ for (split in c("0", "1")) {
 again <- pt_tune_once(prepared, manifests[manifests$split_id == "0", ],
                       file.path(root, "tuning", "synthetic", "split_0"), grid = small_grid,
                       inner_folds = 3L)
+# Tuning split into fold jobs and then assembled equals one complete tuning.
+m0 <- manifests[manifests$split_id == "0", ]
+whole <- file.path(root, "tuning_whole"); pieces <- file.path(root, "tuning_pieces")
+best_whole <- pt_tune_once(prepared, m0, whole, grid = small_grid, inner_folds = 3L)
+stopifnot(is.null(pt_tune_once(prepared, m0, pieces, grid = small_grid, inner_folds = 3L, only_folds = 1L)),
+          !file.exists(file.path(pieces, "best_parameters.csv")),
+          length(list.files(file.path(pieces, "checkpoints"))) == 1L)
+invisible(pt_tune_once(prepared, m0, pieces, grid = small_grid, inner_folds = 3L, only_folds = 2:3))
+best_pieces <- pt_tune_once(prepared, m0, pieces, grid = small_grid, inner_folds = 3L)
+stopifnot(identical(best_whole, best_pieces),
+          identical(read.csv(file.path(whole, "cv_results.csv")),
+                    read.csv(file.path(pieces, "cv_results.csv"))))
+# A fold checkpoint from different settings is refused, not silently reused.
+other_grid <- small_grid; other_grid$eta <- .2
+stopifnot(inherits(try(pt_inner_tune(prepared$x[m0$patient_id[m0$partition == "train"], ],
+  prepared$patients$truth[match(m0$patient_id[m0$partition == "train"], prepared$patients$patient_id)],
+  prepared$feature_type, other_grid, 3L, 1234L, 1L, "archived_final",
+  checkpoint_dir = file.path(pieces, "checkpoints"), only_folds = 1L), silent = TRUE), "try-error"))
+stopifnot(identical(pr_parse_folds("3"), 3L), identical(pr_parse_folds("1-3,7"), c(1L, 2L, 3L, 7L)))
+
 # Saved tuning is not reused under different settings.
 old_method <- getOption("cnsml.xgb_tree_method"); options(cnsml.xgb_tree_method = "exact")
 stopifnot(inherits(try(pt_tune_once(prepared, manifests[manifests$split_id == "0", ],
@@ -119,4 +139,4 @@ unlink(c(out, root), recursive = TRUE)
 cat("Fixed-parameter workflow passed: split 0 reconstruction, supplied manifests,",
     "single fit per split, extra metrics, thread-independent resume, missing-value mode,",
     "split-0/split-1 tuning and report, tie-invariant average precision,",
-    "undefined MCC, tuning provenance checks.\n")
+    "undefined MCC, tuning provenance checks, fold jobs assembled = whole tuning.\n")

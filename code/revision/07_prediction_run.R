@@ -18,7 +18,8 @@
 #           (not part of the R1 run; scalar source still to be decided).
 # report    combine the completed variants into summary tables and a figure.
 #
-# Options: --variants a,b  --splits 0,1,2  --tune_split 0|1  --tree_method hist|exact (default hist,
+# Options: --variants a,b  --splits 0,1,2  --tune_split 0|1  --folds 1-5 (tune only
+# these inner folds; a later --step tune without --folds assembles them)  --tree_method hist|exact (default hist,
 # set explicitly because the meaning of "auto" depends on the XGBoost version)
 # --params eta=0.15,max_depth=2,...
 # (--params overrides tuning, for smoke tests only)  --out <dir>.
@@ -27,7 +28,7 @@
 pr_args <- function(args) {
   out <- list(framework = NULL, step = NULL, threads = 2L, variants = NULL,
               splits = NULL, params = NULL, out = NULL, tree_method = "hist",
-              tune_split = "0")
+              tune_split = "0", folds = NULL)
   i <- 1L
   while (i <= length(args)) {
     key <- sub("^--", "", args[i])
@@ -97,9 +98,10 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
     split <- opt$tune_split
     if (!split %in% all_manifests$split_id) stop("Unknown --tune_split: ", split)
     message("[", format(Sys.time()), "] One-off tuning on split ", split, " (", framework, ")")
+    folds <- if (is.null(opt$folds)) NULL else pr_parse_folds(opt$folds)
     best <- pt_tune_once(prepared, all_manifests[all_manifests$split_id == split, ],
                          file.path(tuning_dir, paste0("split_", split)),
-                         threads = opt$threads)
+                         threads = opt$threads, only_folds = folds)
     print(best)
     return(invisible(best))
   }
@@ -168,6 +170,17 @@ pr_framework_manifests <- function(prepared, path, seeds = 20261001L + 0:19) {
     if (!file.rename(tmp, path)) stop("Could not save split manifest: ", path)
   }
   manifests
+}
+
+# "3" or "1,4" or "1-5" -> integer fold numbers.
+pr_parse_folds <- function(text) {
+  parts <- strsplit(strsplit(text, ",")[[1]], "-")
+  folds <- unlist(lapply(parts, function(p) {
+    p <- as.integer(p)
+    if (anyNA(p) || length(p) > 2L) stop("Invalid --folds: ", text)
+    if (length(p) == 2L) seq(p[1], p[2]) else p
+  }))
+  sort(unique(folds))
 }
 
 pr_parse_params <- function(text) {

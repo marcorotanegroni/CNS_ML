@@ -51,19 +51,20 @@ Input: `final_matrices.RData` (Zenodo record 20617051) in
 On the SLURM cluster (recommended), from the repository root:
 
 ```bash
-bash code/revision/submit_prediction_slurm.sh
+NODES="xen7:64 xen5:38 xen3:32" bash code/revision/submit_prediction_slurm.sh
 ```
 
-Per framework this submits the tuning on split 0, the evaluation (started
-automatically when that tuning succeeds) and the check tuning on split 1 (in
-parallel), plus a final report job. Each job uses 32 CPUs and 64 GB by default
-(`CPUS`, `MEM`); `NODE=xen7` keeps every job on one node (with `CPUS=20` the
-three main tunings run together on 64 cores, and are submitted first),
-`NODE_CHECK=xen5 CPUS_CHECK=12` runs the split-1 check tunings on a second
-node,
-`FRAMEWORKS="Tao"` submits a subset and `MAIL=address` adds end/failure
-e-mails. Monitor with `squeue -u $USER`; logs are in
-`logs/slurm_*.out`, with a timestamp on every inner CV fold.
+Each inner-CV fold of each tuning runs as a separate job (8 CPUs, 24 GB by
+default) and is checkpointed when it finishes; an assembly job then selects
+the configuration from the ten saved folds, and the evaluation starts after
+it. Assembling folds computed separately gives exactly the same CV results as
+one complete tuning (checked in `test_prediction_fixed.R`). Per framework:
+split-0 fold jobs -> assembly -> evaluation; split-1 fold jobs -> assembly
+(check). Fold jobs are spread over `NODES` in proportion to their cores and a
+final report job waits for all jobs. Options: `CPUS`, `MEM`, `CPUS_EVAL`,
+`FRAMEWORKS`, `MAIL`. Resubmitting the same command after an interruption
+(for example the 95-hour limit) skips completed folds and splits. Monitor with
+`squeue -u $USER`; logs are in `logs/slurm_*.out`.
 
 Without SLURM, `THREADS=4 bash code/revision/run_prediction_fixed.sh` runs the
 same steps in parallel processes (logs in `logs/`, progress in

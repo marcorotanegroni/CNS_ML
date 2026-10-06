@@ -262,8 +262,14 @@ pt_check_xgboost <- function() {
   invisible(TRUE)
 }
 
+# checkpoint_dir: optional; each completed fold is saved there and reused when
+# its validation patients, grid, seed and settings are unchanged, so a long
+# tuning can resume after interruption. only_folds: compute only these folds
+# (e.g. one SLURM job per fold) and return without selecting parameters; a
+# later call without only_folds assembles all folds from the checkpoints.
 pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
-                          preprocessing = "training_fold") {
+                          preprocessing = "training_fold", checkpoint_dir = NULL,
+                          only_folds = NULL) {
   if (any(table(factor(truth, levels = c("1", "2"))) < folds)) {
     stop("Each class needs at least inner_folds training patients; reduce folds only explicitly.")
   }
@@ -275,7 +281,25 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
   group_key <- do.call(paste, c(grid[group_columns], sep = "|"))
   groups <- split(seq_len(nrow(grid)), factor(group_key, levels = unique(group_key)))
   audit <- vector("list", length(validation))
-  for (f in seq_along(validation)) {
+  targets <- if (is.null(only_folds)) seq_along(validation) else as.integer(only_folds)
+  if (any(!targets %in% seq_along(validation))) stop("only_folds must be within 1..", folds)
+  if (!is.null(checkpoint_dir)) dir.create(checkpoint_dir, recursive = TRUE, showWarnings = FALSE)
+  fold_key <- function(f) pt_hash(list(
+    fold = f, folds = folds, seed = seed, grid = grid, preprocessing = preprocessing,
+    tree_method = getOption("cnsml.xgb_tree_method", "auto"),
+    training_ids = rownames(x), truth = truth, features = colnames(x),
+    validation_ids = rownames(x)[validation[[f]]]))
+  for (f in targets) {
+    fold_path <- if (!is.null(checkpoint_dir)) file.path(checkpoint_dir, sprintf("fold_%02d.rds", f))
+    if (!is.null(fold_path) && file.exists(fold_path)) {
+      saved <- readRDS(fold_path)
+      if (!identical(saved$key, fold_key(f))) {
+        stop("Fold checkpoint does not match the current data/settings: ", fold_path)
+      }
+      message("  Inner fold ", f, "/", length(validation), ": reuse checkpoint")
+      accuracy[, f] <- saved$accuracy; audit[[f]] <- saved$audit
+      next
+    }
     message("  [", format(Sys.time(), "%m-%d %H:%M"), "] Inner fold ", f, "/", length(validation), ": ",
             if (preprocessing == "training_fold") "fit filters; " else "keep archived predictors; ",
             length(groups), " model paths")
@@ -304,7 +328,11 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
       rm(fit); invisible(gc(verbose = FALSE))
     }
     rm(dtrain, dvalid); invisible(gc(verbose = FALSE))
+    if (!is.null(fold_path)) {
+      pt_atomic_save(list(key = fold_key(f), accuracy = accuracy[, f], audit = audit[[f]]), fold_path)
+    }
   }
+  if (!is.null(only_folds)) return(invisible(list(completed_folds = targets)))
   results <- cbind(grid, mean_accuracy = rowMeans(accuracy),
                    sd_accuracy = apply(accuracy, 1L, stats::sd), as.data.frame(accuracy))
   best <- which.max(results$mean_accuracy)
@@ -318,7 +346,7 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
 # configuration is then held fixed across all outer splits and variants.
 pt_tune_once <- function(prepared, manifest, output_dir, grid = pt_default_grid(),
                          inner_folds = 10L, seed = 1234L, threads = 2L,
-                         preprocessing = "archived_final") {
+                         preprocessing = "archived_final", only_folds = NULL) {
   pt_require_packages()
   prepared <- pt_validate_prepared(prepared)
   grid <- pt_validate_grid(grid)
@@ -334,7 +362,13 @@ pt_tune_once <- function(prepared, manifest, output_dir, grid = pt_default_grid(
   started <- Sys.time()
   message("tree_method: ", getOption("cnsml.xgb_tree_method", "auto"))
   tuning <- pt_inner_tune(prepared$x[train, , drop = FALSE], truth, prepared$feature_type,
-                          grid, inner_folds, seed, threads, preprocessing)
+                          grid, inner_folds, seed, threads, preprocessing,
+                          checkpoint_dir = file.path(output_dir, "checkpoints"),
+                          only_folds = only_folds)
+  if (!is.null(only_folds)) {
+    message("Completed folds ", paste(only_folds, collapse = ","), "; run without --folds to assemble.")
+    return(invisible(NULL))
+  }
   utils::write.csv(tuning$cv_results, file.path(output_dir, "cv_results.csv"), row.names = FALSE)
   writeLines(c(paste("Training patients:", length(train)),
                paste("Inner folds:", inner_folds, "; seed:", seed, "; threads:", threads,
