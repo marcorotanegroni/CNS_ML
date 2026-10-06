@@ -51,11 +51,11 @@ Input: `final_matrices.RData` (Zenodo record 20617051) in
 On the SLURM cluster (recommended), from the repository root:
 
 ```bash
-NODES="xen7:64 xen5:38 xen3:32" bash code/revision/submit_prediction_slurm.sh
+NODES="xen7:64:40 xen5:38:40 xen3:32:28" bash code/revision/submit_prediction_slurm.sh
 ```
 
-Each inner-CV fold of each tuning runs as a separate job (8 CPUs, 24 GB by
-default) and is checkpointed when it finishes; an assembly job then selects
+Each inner-CV fold of each tuning runs as a separate job (8 CPUs; memory per
+node from `NODES` as `name:cores:GB`, otherwise 24 GB) and is checkpointed when it finishes; an assembly job then selects
 the configuration from the ten saved folds, and the evaluation starts after
 it. Assembling folds computed separately gives exactly the same CV results as
 one complete tuning (checked in `test_prediction_fixed.R`). Per framework:
