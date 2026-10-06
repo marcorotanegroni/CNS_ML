@@ -117,7 +117,12 @@ pi_load_inputs <- function(final_path, normalized_path = NULL, cluster_path,
     colnames(other) <- feature_map$feature
     patients <- data.frame(patient_id = ids[keep], cancer_type = cancer[keep],
                            truth = as.character(labels[ids[keep]]))
-    extras[[framework]] <- list(x = other, patients = patients, feature_map = feature_map)
+    # Complete archived row order and cancer types: needed to reconstruct the
+    # historical seed-1234 partition, which was drawn on the whole matrix.
+    archive_frame <- data.frame(patient_id = ids, cancer_type = cancer,
+                                stringsAsFactors = FALSE)
+    extras[[framework]] <- list(x = other, patients = patients, feature_map = feature_map,
+                                archive_frame = archive_frame)
     audits[[framework]] <- data.frame(
       framework = framework, input_mode = input_mode, archived_n = nrow(final),
       selected_cluster12_n = sum(keep), excluded_other_clusters_or_LAML = sum(!keep),
@@ -200,5 +205,48 @@ pi_prepare_framework <- function(inputs, framework) {
   list(x = x, patients = patients,
        feature_type = setNames(feature_map$feature_type, feature_map$feature),
        feature_map = feature_map, provenance = inputs$provenance,
-       input_mode = inputs$input_mode)
+       input_mode = inputs$input_mode, archive_frame = extra$archive_frame)
+}
+
+# Remove predictors by their source name (e.g. "purity" for R2).
+pi_drop_features <- function(prepared, source_names) {
+  drop <- prepared$feature_map$feature[prepared$feature_map$source_name %in% source_names]
+  if (length(drop) != length(source_names)) {
+    stop("Expected exactly one predictor for each of: ", paste(source_names, collapse = ", "))
+  }
+  keep <- !colnames(prepared$x) %in% drop
+  prepared$x <- prepared$x[, keep, drop = FALSE]
+  prepared$feature_type <- prepared$feature_type[colnames(prepared$x)]
+  prepared$feature_map <- prepared$feature_map[!prepared$feature_map$feature %in% drop, ]
+  prepared
+}
+
+# Scalar copy-number baseline (R2): ploidy, fraction of the genome with loss of
+# heterozygosity (ASCAT frac_homo) and number of copy number alterations, from
+# the ASCAT penalty-70 TCGA fits distributed with Drews et al. One primary
+# tumour (sample type 01), representative ("rep") profile per patient. Patients
+# without a profile keep missing values, which XGBoost handles natively, so the
+# cohort and splits are identical to the multi-omic models.
+pi_scalar_baseline <- function(prepared, ascat_path) {
+  if (!file.exists(ascat_path)) stop("Missing ASCAT metadata: ", ascat_path)
+  ascat <- as.data.frame(readRDS(ascat_path))
+  needed <- c("patient", "barcodeTumour", "rep", "ploidy", "frac_homo", "CNAs")
+  if (!all(needed %in% names(ascat))) stop("Unexpected ASCAT metadata layout.")
+  ascat <- ascat[substr(ascat$barcodeTumour, 14, 15) == "01" & ascat$rep %in% TRUE, ]
+  if (anyDuplicated(ascat$patient)) stop("More than one representative primary profile per patient.")
+  ids <- prepared$patients$patient_id
+  row <- match(ids, ascat$patient)
+  scalars <- c("ploidy", "frac_homo", "CNAs")
+  x <- vapply(scalars, function(v) as.numeric(ascat[[v]][row]), numeric(length(ids)))
+  x <- matrix(x, nrow = length(ids), dimnames = list(ids, paste0("scalar__", scalars)))
+  feature_map <- data.frame(feature = colnames(x), source_name = scalars,
+                            feature_type = "other", source = basename(ascat_path),
+                            source_column = match(scalars, names(ascat)), stringsAsFactors = FALSE)
+  coverage <- data.frame(n = length(ids), with_profile = sum(!is.na(row)),
+                         t(colSums(!is.na(x))))
+  list(x = x, patients = prepared$patients,
+       feature_type = setNames(feature_map$feature_type, feature_map$feature),
+       feature_map = feature_map, provenance = prepared$provenance,
+       input_mode = "scalar_baseline", archive_frame = prepared$archive_frame,
+       coverage = coverage)
 }

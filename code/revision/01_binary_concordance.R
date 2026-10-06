@@ -144,6 +144,12 @@ bc_pair_metrics <- function(binary, framework, rule) {
   n00 <- nrow(binary) - n11 - n10 - n01
   discordant <- n10 + n01
   agreement <- n11 + n00
+  # Chance reference: agreement expected if the two binary states were
+  # independent given their observed active prevalences.
+  p1 <- active[first] / nrow(binary); p2 <- active[second] / nrow(binary)
+  expected_n11 <- nrow(binary) * p1 * p2
+  observed <- agreement / nrow(binary)
+  expected <- p1 * p2 + (1 - p1) * (1 - p2)
   names_first <- colnames(binary)[first]; names_second <- colnames(binary)[second]
   high <- bc_high_activity_signatures()
   data.frame(rule = rule, signature1 = names_first, signature2 = names_second,
@@ -156,8 +162,11 @@ bc_pair_metrics <- function(binary, framework, rule) {
     state_jaccard = bc_safe_ratio(agreement, agreement + 2 * discordant),
     active_share_of_agreements = bc_safe_ratio(n11, agreement),
     inactive_share_of_agreements = bc_safe_ratio(n00, agreement),
-    active_prevalence1 = unname(active[first] / nrow(binary)),
-    active_prevalence2 = unname(active[second] / nrow(binary)),
+    active_jaccard = bc_safe_ratio(n11, n11 + discordant),
+    expected_n11 = unname(expected_n11),
+    observed_expected_n11 = bc_safe_ratio(n11, expected_n11),
+    cohen_kappa = bc_safe_ratio(observed - expected, 1 - expected),
+    active_prevalence1 = unname(p1), active_prevalence2 = unname(p2),
     stringsAsFactors = FALSE)
 }
 
@@ -169,7 +178,7 @@ bc_stability <- function(pairs) {
     stopifnot(identical(baseline$signature1, alternative$signature1),
               identical(baseline$signature2, alternative$signature2))
     include <- baseline$cross_framework & baseline$high_activity_pair
-    for (metric in "state_jaccard") {
+    for (metric in c("state_jaccard", "active_jaccard", "cohen_kappa")) {
       a <- baseline[[metric]][include]; b <- alternative[[metric]][include]
       valid <- is.finite(a) & is.finite(b)
       rho <- if (sum(valid) >= 2L && length(unique(a[valid])) > 1L &&
@@ -184,6 +193,36 @@ bc_stability <- function(pairs) {
     }
   }
   do.call(rbind, result)
+}
+
+# Rank of each principal pair among the 48 cross-compendium pairs of the 12
+# selected signatures (1 = strongest), per rule and metric, and overlap of the
+# five strongest pairs with the original rule.
+bc_principal_ranks <- function(pairs, principal,
+                               metrics = c("state_jaccard", "active_jaccard", "cohen_kappa"),
+                               top_k = 5L) {
+  subset <- pairs[pairs$cross_framework & pairs$high_activity_pair, ]
+  key <- function(a, b) paste(pmin(a, b), pmax(a, b), sep = "/")
+  subset$pair <- key(subset$signature1, subset$signature2)
+  wanted <- vapply(principal, function(x) key(x[1], x[2]), character(1))
+  ranks <- list(); overlap <- list()
+  for (metric in metrics) {
+    reference_top <- NULL
+    for (rule in unique(subset$rule)) {
+      x <- subset[subset$rule == rule, ]
+      x$rank <- rank(-x[[metric]], ties.method = "min", na.last = "keep")
+      top <- x$pair[order(x$rank)][seq_len(top_k)]
+      if (rule == "original") reference_top <- top
+      hit <- x[x$pair %in% wanted, ]
+      ranks[[length(ranks) + 1L]] <- data.frame(metric = metric, rule = rule,
+        selection = names(wanted)[match(hit$pair, wanted)], pair = hit$pair,
+        value = hit[[metric]], rank = hit$rank, n_pairs = nrow(x))
+      overlap[[length(overlap) + 1L]] <- data.frame(metric = metric, rule = rule,
+        top_k = top_k, top_pairs = paste(top, collapse = "; "),
+        shared_with_original = length(intersect(top, reference_top)))
+    }
+  }
+  list(ranks = do.call(rbind, ranks), top_overlap = do.call(rbind, overlap))
 }
 
 bc_verify_metrics <- function(original) {
@@ -201,12 +240,19 @@ bc_verify_metrics <- function(original) {
       stopifnot(identical(as.numeric(metrics[i, c("n11", "n00", "n10", "n01")]),
                           as.numeric(counts)))
       same <- a == b
+      union <- sum(a == 1 | b == 1)
+      expected_n11 <- sum(a) * sum(b) / length(a)
+      pe <- mean(a) * mean(b) + mean(1 - a) * mean(1 - b)
       direct <- c(sum(same) / (2 * length(a) - sum(same)),
                   if (any(same)) mean(a[same] == 1) else NA_real_,
-                  if (any(same)) mean(a[same] == 0) else NA_real_)
+                  if (any(same)) mean(a[same] == 0) else NA_real_,
+                  if (union > 0) sum(a == 1 & b == 1) / union else NA_real_,
+                  if (expected_n11 > 0) sum(a == 1 & b == 1) / expected_n11 else NA_real_,
+                  if (pe < 1) (mean(same) - pe) / (1 - pe) else NA_real_)
       stopifnot(isTRUE(all.equal(
         as.numeric(metrics[i, c("state_jaccard", "active_share_of_agreements",
-                                "inactive_share_of_agreements")]), direct)))
+                                "inactive_share_of_agreements", "active_jaccard",
+                                "observed_expected_n11", "cohen_kappa")]), direct)))
     }
   }
   invisible(TRUE)
@@ -256,6 +302,43 @@ bc_plot_heatmaps <- function(pairs, signatures, order, rules,
   p
 }
 
+# Compact threshold-sensitivity summary: distribution of each metric over the
+# 48 cross-compendium pairs of the selected signatures, per rule, with the
+# cross-compendium pairs discussed in the manuscript (CN1/Sig1, CN1/Sig2,
+# CX1/CN1) highlighted and labelled by their rank among the 48.
+bc_plot_threshold_sensitivity <- function(pairs, ranks, rules,
+    metrics = c(state_jaccard = "Patient-state Jaccard",
+                active_jaccard = "Active-state Jaccard")) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) stop("ggplot2 is required for plots.")
+  subset <- pairs[pairs$cross_framework & pairs$high_activity_pair & pairs$rule %in% rules, ]
+  long <- do.call(rbind, lapply(names(metrics), function(m)
+    data.frame(rule = subset$rule, metric = metrics[[m]], value = subset[[m]])))
+  hits <- ranks[ranks$metric %in% names(metrics) & ranks$rule %in% rules, ]
+  hits$metric <- metrics[hits$metric]
+  rule_short <- c(original = "Original", positive_q25 = "Pos. Q25",
+                  positive_q50 = "Pos. Q50", positive_q75 = "Pos. Q75")
+  for (nm in c("long", "hits")) {
+    d <- get(nm)
+    d$rule <- factor(d$rule, levels = rules, labels = rule_short[rules])
+    d$metric <- factor(d$metric, levels = unname(metrics))
+    assign(nm, d)
+  }
+  ggplot2::ggplot(long, ggplot2::aes(rule, value)) +
+    ggplot2::geom_boxplot(outlier.shape = NA, fill = "grey92", colour = "grey55", width = .55) +
+    ggplot2::geom_jitter(width = .12, height = 0, size = .7, colour = "grey60") +
+    ggplot2::geom_line(data = hits, ggplot2::aes(group = pair, colour = pair), linewidth = .6) +
+    ggplot2::geom_point(data = hits, ggplot2::aes(colour = pair), size = 2) +
+    ggplot2::geom_text(data = hits, ggplot2::aes(label = rank, colour = pair),
+                       nudge_x = .22, size = 2.8, show.legend = FALSE) +
+    ggplot2::facet_wrap(~ metric, nrow = 1, scales = "free_y") +
+    ggplot2::scale_colour_manual(values = c("#08519c", "#6baed6", "#e6550d"), name = NULL) +
+    ggplot2::theme_bw(base_size = 10) +
+    ggplot2::theme(panel.grid.minor = ggplot2::element_blank(), legend.position = "bottom") +
+    ggplot2::labs(x = NULL, y = NULL,
+      caption = paste("Grey: the 48 cross-compendium pairs of the 12 selected signatures.",
+                      "Numbers: rank of each principal pair among the 48 (1 = strongest)."))
+}
+
 run_binary_concordance <- function(
     input_path = "data/processed/signature_exploration_data.RData",
     output_dir = "results/revision/binary_concordance", make_plots = TRUE) {
@@ -281,43 +364,54 @@ run_binary_concordance <- function(
   rownames(thresholds) <- NULL; rownames(pairs) <- NULL
   stability <- bc_stability(pairs)
   principal <- list(CN1_Sig1 = c("CN1", "Sig1"), CN1_Sig2 = c("CN1", "Sig2"),
-                    CX1_CN1 = c("CX1", "CN1"), CN1_CN2 = c("CN1", "CN2"))
+                    CX1_CN1 = c("CX1", "CN1"), CN1_CN2 = c("CN1", "CN2"),
+                    CN4_CN10 = c("CN4", "CN10"))
   selected <- do.call(rbind, lapply(names(principal), function(label) {
     signatures <- principal[[label]]
     out <- pairs[pairs$signature1 %in% signatures & pairs$signature2 %in% signatures, ]
     cbind(selection = label, out)
   }))
+  principal_ranks <- bc_principal_ranks(pairs, principal)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   write.csv(thresholds, file.path(output_dir, "thresholds.csv"), row.names = FALSE, na = "NA")
   write.csv(pairs, file.path(output_dir, "pair_metrics.csv"), row.names = FALSE, na = "NA")
   write.csv(stability, file.path(output_dir, "rank_stability.csv"), row.names = FALSE, na = "NA")
   write.csv(selected, file.path(output_dir, "principal_pairs.csv"), row.names = FALSE, na = "NA")
+  write.csv(principal_ranks$ranks, file.path(output_dir, "principal_pair_ranks.csv"),
+            row.names = FALSE, na = "NA")
+  write.csv(principal_ranks$top_overlap, file.path(output_dir, "top_pair_overlap.csv"),
+            row.names = FALSE, na = "NA")
   all_order <- colnames(cohort$values)[hclust(dist(t(analyses$original$binary)), method = "complete")$order]
   high <- bc_high_activity_signatures()
   high_order <- high[hclust(dist(t(analyses$original$binary[, high, drop = FALSE])), method = "complete")$order]
   if (make_plots) {
-    components <- c(active_share_of_agreements = "Active-active: n11 / (n11 + n00)",
-                    inactive_share_of_agreements = "Inactive-inactive: n00 / (n11 + n00)")
-    component_caption <- "Denominator: concordant patients for each pair. Shares sum to 1 when defined. Interpret alongside overall Jaccard."
+    components <- c(state_jaccard = "Patient-state Jaccard (Figure 4)",
+                    inactive_share_of_agreements = "Inactive-inactive share of agreements",
+                    active_jaccard = "Active-state Jaccard")
+    component_caption <- paste(
+      "Patient-state Jaccard = (n11+n00)/(n11+n00+2(n10+n01)); inactive-inactive share = n00/(n11+n00);",
+      "active-state Jaccard = n11/(n11+n10+n01). Grey: undefined.")
     all_components <- bc_plot_heatmaps(pairs, all_order, all_order, "original",
-      components, scale_name = "Share of agreements", caption = NULL) +
-      ggplot2::labs(title = "All 58 signatures: original zero/median rule") +
+      components, caption = NULL) +
+      ggplot2::labs(title = "a  All 58 signatures") +
       ggplot2::theme(strip.text.y = ggplot2::element_blank(), legend.position = "none")
     high_components <- bc_plot_heatmaps(pairs, high, high_order, "original",
-      components, scale_name = "Share of agreements", caption = component_caption) +
-      ggplot2::labs(title = "12 signatures selected for clustering: original zero/median rule") +
+      components, caption = component_caption) +
+      ggplot2::labs(title = "b  12 signatures selected for clustering") +
       ggplot2::theme(strip.text.y = ggplot2::element_blank())
     grDevices::png(file.path(output_dir, "state_agreement_components.png"),
-                   width = 3600, height = 3600, res = 180, bg = "white")
+                   width = 4800, height = 3600, res = 180, bg = "white")
     tryCatch({
       grid::grid.newpage()
       grid::pushViewport(grid::viewport(layout = grid::grid.layout(2, 1)))
       print(all_components, vp = grid::viewport(layout.pos.row = 1, layout.pos.col = 1))
       print(high_components, vp = grid::viewport(layout.pos.row = 2, layout.pos.col = 1))
     }, finally = grDevices::dev.off())
-    sensitivity <- bc_plot_heatmaps(pairs, high, high_order, rules)
-    ggplot2::ggsave(file.path(output_dir, "threshold_sensitivity_high_activity.png"),
-                   sensitivity, width = 12, height = 20, units = "in", dpi = 180,
+    sensitivity <- bc_plot_threshold_sensitivity(pairs, principal_ranks$ranks, rules)
+    old_heatmap <- file.path(output_dir, "threshold_sensitivity_high_activity.png")
+    if (file.exists(old_heatmap)) file.remove(old_heatmap)
+    ggplot2::ggsave(file.path(output_dir, "threshold_sensitivity_principal_pairs.png"),
+                   sensitivity, width = 8, height = 4.5, units = "in", dpi = 200,
                    bg = "white")
   }
   writeLines(c(paste0("Input: ", normalizePath(input_path)),
@@ -331,7 +425,9 @@ run_binary_concordance <- function(
     "Pairs with no concordant patients have undefined agreement shares (NA); an undefined positive quantile classifies all samples as inactive.",
     "State J = (n11+n00)/(n11+n00+2*(n10+n01)).",
     "Composition of observed agreements: active share = n11/(n11+n00); inactive share = n00/(n11+n00). Shares sum to 1 when defined.",
+    "Active-state J = n11/(n11+n10+n01). Expected n11 = N*p1*p2 under independence of the two binary states; Cohen kappa uses the same marginal prevalences.",
     "Rank stability summarizes the 48 cross-compendium pairs among the selected signatures, using finite pairs only.",
+    "Principal-pair ranks are computed among the same 48 pairs (1 = strongest, ties share the minimum rank).",
     "A constant vector or fewer than two comparable pairs yields NA for rank correlation.",
     "The selected 12 signatures reproduce Figure 4b; selection does not denote active-only agreement.",
     "Heatmap ordering uses complete-linkage clustering of Euclidean distances between original binary signature columns."),
@@ -341,7 +437,8 @@ run_binary_concordance <- function(
           " (", nrow(cohort$values), " patients; ", ncol(cohort$values),
           " signatures; ", length(rules), " rules).")
   invisible(list(thresholds = thresholds, pairs = pairs, stability = stability,
-                 principal_pairs = selected, cohort = cohort, analyses = analyses))
+                 principal_pairs = selected, principal_ranks = principal_ranks,
+                 cohort = cohort, analyses = analyses))
 }
 
 if (sys.nframe() == 0L) {

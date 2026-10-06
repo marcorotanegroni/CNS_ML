@@ -1,0 +1,13 @@
+"metric","rule","top_k","top_pairs","shared_with_original"
+"state_jaccard","original",5,"CN1/Sig1; CN1/Sig2; CN1/Sig5; CN2/Sig7; CN9/Sig1",5
+"state_jaccard","positive_q25",5,"CN1/Sig1; CN1/Sig2; CN9/Sig1; CN2/Sig7; CN9/Sig2",4
+"state_jaccard","positive_q50",5,"CN1/Sig2; CN1/Sig1; CN2/Sig7; CN1/Sig5; CN9/Sig1",5
+"state_jaccard","positive_q75",5,"CN1/Sig2; CN1/Sig1; CN1/Sig5; CN17/Sig2; CN2/Sig7",4
+"active_jaccard","original",5,"CN1/Sig1; CN1/Sig2; CN2/Sig7; CN1/Sig5; CN1/CX1",5
+"active_jaccard","positive_q25",5,"CN1/Sig1; CN1/Sig2; CX1/Sig5; CN2/Sig7; CN9/Sig1",3
+"active_jaccard","positive_q50",5,"CN2/Sig7; CX1/Sig5; CN9/CX2; CX1/Sig2; CX1/Sig1",1
+"active_jaccard","positive_q75",5,"CN2/Sig7; CN9/CX2; CN17/CX3; CX1/Sig5; CN17/CX5",1
+"cohen_kappa","original",5,"CN1/Sig1; CN1/Sig2; CN1/Sig5; CN2/Sig7; CN1/CX1",5
+"cohen_kappa","positive_q25",5,"CN1/Sig1; CN1/Sig2; CN9/Sig1; CN2/Sig7; CN9/Sig2",3
+"cohen_kappa","positive_q50",5,"CN2/Sig7; CN1/Sig2; CN9/CX2; CN1/Sig1; CN17/CX3",3
+"cohen_kappa","positive_q75",5,"CN2/Sig7; CN9/CX2; CN17/CX3; CN1/CX1; CN17/CX5",2

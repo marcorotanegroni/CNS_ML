@@ -12,3 +12,9 @@ exp_meth_post_normalization.RData
 # Local run setup and preliminary split assignments (may precede completed fits).
 /results/revision/prediction/**/run_manifest.rds
 /results/revision/prediction/**/split_manifest.csv
+
+# ASCAT penalty-70 TCGA fits (Drews et al.) used for the scalar baseline.
+Metadata_TCGA_ASCAT_penalty70.rds
+
+# Workstation run logs.
+/logs/

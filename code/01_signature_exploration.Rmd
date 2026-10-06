@@ -390,6 +390,10 @@ concordant patients: `n11/(n11+n00)` and `n00/(n11+n00)`. The denominator is the
 number of observed agreements for each pair. These complementary shares sum
 to one when defined and explain the composition of overall agreement; they
 must be interpreted alongside the original Jaccard and concordant counts.
+Coactivation is additionally summarized by the active-state Jaccard
+`n11/(n11+n10+n01)`. The pair table also lists expected active-active counts
+under independence and Cohen's kappa for reference; they are not used in the
+manuscript.
 
 The original zero/median rule uses each complete compendium as its threshold
 reference, before restriction to matched patients. This is an operational
@@ -400,7 +404,10 @@ a shared biological activation threshold. Sensitivity analyses use the
 compendium. All comparisons retain the same matched patients.
 Positive-exposure quantiles perturb sparse signatures whose
 unconditional quantiles can remain zero; achieved prevalences are reported
-because ties can change the fraction classified as active.
+because ties can change the fraction classified as active. Stability is
+summarized by the rank of the principal pairs among the 48 cross-compendium
+pairs of the 12 selected signatures for the patient-state and active-state
+Jaccard.
 
 ```{r binary-concordance-sensitivity, message=FALSE}
 source("revision/01_binary_concordance.R")
@@ -418,6 +425,6 @@ and recorded as `NA`; the overall patient-state Jaccard is zero.
 ```{r binary-concordance-supplementary-figures, out.width="100%"}
 knitr::include_graphics(file.path(
   "../results/revision/binary_concordance",
-  c("state_agreement_components.png", "threshold_sensitivity_high_activity.png")
+  c("state_agreement_components.png", "threshold_sensitivity_principal_pairs.png")
 ))
 ```

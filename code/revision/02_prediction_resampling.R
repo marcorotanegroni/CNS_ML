@@ -144,3 +144,61 @@ pr_bootstrap_test_f1 <- function(predictions, n_boot, seed) {
          bootstrap = do.call(rbind, draws))
   })
 }
+
+# Reconstruct the historical 80/20 partition of notebook 00: the complete
+# archived matrix, in stored row order, grouped by cancer type and sampled with
+# dplyr::sample_frac(.80) after set.seed(1234). Only eligible patients are kept
+# afterwards, so the held-out set is the historical one restricted to the
+# Cluster 1/2 target cohort.
+pr_original_split <- function(archive_frame, eligible_ids, seed = 1234L,
+                              fraction = .80) {
+  if (!requireNamespace("dplyr", quietly = TRUE)) stop("dplyr is required.")
+  required <- c("patient_id", "cancer_type")
+  if (!is.data.frame(archive_frame) || !all(required %in% names(archive_frame))) {
+    stop("archive_frame must contain patient_id and cancer_type in stored order.")
+  }
+  if (anyDuplicated(archive_frame$patient_id)) stop("Duplicated archived patient_id.")
+  if (!all(eligible_ids %in% archive_frame$patient_id)) {
+    stop("Eligible patients are missing from the archived matrix.")
+  }
+  train <- pr_with_seed(seed, {
+    sampled <- dplyr::sample_frac(dplyr::group_by(archive_frame, cancer_type), fraction)
+    as.character(sampled$patient_id)
+  })
+  eligible <- archive_frame[archive_frame$patient_id %in% eligible_ids, required]
+  eligible <- eligible[order(eligible$cancer_type, eligible$patient_id), ]
+  data.frame(split_id = "0", split_seed = as.integer(seed),
+             patient_id = as.character(eligible$patient_id),
+             cancer_type = as.character(eligible$cancer_type),
+             partition = ifelse(eligible$patient_id %in% train, "train", "test"),
+             singleton_stratum = FALSE, row.names = NULL)
+}
+
+# Threshold-free and prevalence-aware companions to the positive-class F1.
+# AUROC uses the Mann-Whitney rank formulation; average precision is the
+# step-wise area under the precision-recall curve. The trivial F1 is the F1 of a
+# classifier that labels every patient Cluster 1, i.e. 2p / (1 + p).
+pr_classification_metrics <- function(truth, probability, predicted) {
+  truth <- as.character(truth); predicted <- as.character(predicted)
+  if (length(truth) != length(probability) || anyNA(probability)) {
+    stop("probability must be complete and aligned with truth.")
+  }
+  positive <- truth == "1"
+  n_pos <- sum(positive); n_neg <- sum(!positive)
+  ranks <- rank(probability)
+  auroc <- if (n_pos && n_neg) (sum(ranks[positive]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg) else NA_real_
+  ord <- order(-probability)
+  hits <- positive[ord]
+  precision <- cumsum(hits) / seq_along(hits)
+  average_precision <- if (n_pos) sum(precision[hits]) / n_pos else NA_real_
+  counts <- pr_f1(truth, predicted)
+  tp <- as.numeric(counts$tp); fp <- as.numeric(counts$fp)
+  fn <- as.numeric(counts$fn); tn <- as.numeric(counts$tn)
+  mcc_den <- sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+  prevalence <- n_pos / length(truth)
+  data.frame(prevalence_cluster1 = prevalence,
+             trivial_f1 = 2 * prevalence / (1 + prevalence),
+             auroc = auroc, average_precision = average_precision,
+             balanced_accuracy = mean(c(tp / (tp + fn), tn / (tn + fp))),
+             mcc = if (mcc_den > 0) (tp * tn - fp * fn) / mcc_den else NA_real_)
+}

@@ -106,13 +106,15 @@ pt_correlated_columns <- function(x, cutoff = .90, block_columns = 256L) {
 # on unscaled values avoids doing that transformation twice.
 pt_fit_preprocessor <- function(x, feature_type, drop_fraction = .2, cutoff = .90,
                                 preprocessing = "training_fold") {
-  preprocessing <- match.arg(preprocessing, c("archived_final", "training_fold"))
+  preprocessing <- match.arg(preprocessing, c("archived_final", "training_fold", "unchanged"))
   if (nrow(x) < 2L) stop("At least two training rows are required.")
   feature_type <- feature_type[colnames(x)]
-  if (preprocessing == "archived_final") {
+  if (preprocessing %in% c("archived_final", "unchanged")) {
     # R1 split sensitivity conditions on the unchanged historical predictor
-    # matrix. No new selection or rescaling is fitted in this mode.
-    if (any(!vapply(seq_len(ncol(x)), function(j) all(is.finite(x[, j])), logical(1)))) {
+    # matrix. No new selection or rescaling is fitted in this mode. The
+    # "unchanged" mode (scalar baseline) passes missing values to XGBoost.
+    if (preprocessing == "archived_final" &&
+        any(!vapply(seq_len(ncol(x)), function(j) all(is.finite(x[, j])), logical(1)))) {
       stop("The archived final predictor matrix must contain finite numeric values.")
     }
     counts <- data.frame(stage = "archived_unchanged",
@@ -206,6 +208,9 @@ pt_xgb_fit <- function(x, truth, params, seed, threads) {
   dtrain <- xgboost::xgb.DMatrix(x, label = as.integer(truth == "1"))
   args <- as.list(params[1L, setdiff(names(params), "nrounds"), drop = FALSE])
   args$objective <- "binary:logistic"
+  # "auto" reproduces caret's historical default (exact greedy for this data
+  # size); "hist" is the histogram algorithm, much faster with ~35,000 features.
+  args$tree_method <- getOption("cnsml.xgb_tree_method", "auto")
   args$nthread <- as.integer(threads)
   args$verbosity <- 0L
   pr_with_seed(seed, xgboost::xgb.train(params = args, data = dtrain,
@@ -297,6 +302,40 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
        folds = audit, selection_metric = "Accuracy")
 }
 
+# One-off tuning per framework: the original grid and 10-fold class-stratified
+# CV on the training part of a single outer split (the historical split 0),
+# with the archived predictors as in the published pipeline. The selected
+# configuration is then held fixed across all outer splits and variants.
+pt_tune_once <- function(prepared, manifest, output_dir, grid = pt_default_grid(),
+                         inner_folds = 10L, seed = 1234L, threads = 2L,
+                         preprocessing = "archived_final") {
+  pt_require_packages()
+  prepared <- pt_validate_prepared(prepared)
+  grid <- pt_validate_grid(grid)
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  best_path <- file.path(output_dir, "best_parameters.csv")
+  if (file.exists(best_path)) {
+    message("Tuning already completed: ", best_path)
+    return(utils::read.csv(best_path))
+  }
+  train <- manifest$patient_id[manifest$partition == "train"]
+  truth <- prepared$patients$truth[match(train, prepared$patients$patient_id)]
+  started <- Sys.time()
+  message("tree_method: ", getOption("cnsml.xgb_tree_method", "auto"))
+  tuning <- pt_inner_tune(prepared$x[train, , drop = FALSE], truth, prepared$feature_type,
+                          grid, inner_folds, seed, threads, preprocessing)
+  utils::write.csv(tuning$cv_results, file.path(output_dir, "cv_results.csv"), row.names = FALSE)
+  writeLines(c(paste("Training patients:", length(train)),
+               paste("Inner folds:", inner_folds, "; seed:", seed, "; threads:", threads,
+                     "; tree_method:", getOption("cnsml.xgb_tree_method", "auto")),
+               paste("Started:", started, "; finished:", Sys.time()),
+               paste("Range of mean CV accuracy across the grid:",
+                     paste(signif(range(tuning$cv_results$mean_accuracy), 4), collapse = " - "))),
+             file.path(output_dir, "tuning_notes.txt"))
+  utils::write.csv(tuning$best_parameters, best_path, row.names = FALSE)
+  tuning$best_parameters
+}
+
 pt_atomic_save <- function(value, path) {
   tmp <- tempfile(pattern = "checkpoint-", tmpdir = dirname(path))
   on.exit(unlink(tmp), add = TRUE)
@@ -304,13 +343,19 @@ pt_atomic_save <- function(value, path) {
   if (!file.rename(tmp, path)) stop("Could not save checkpoint: ", path)
 }
 
+# manifests: optional precomputed outer splits (columns split_id, split_seed,
+# patient_id, cancer_type, partition), e.g. the reconstructed historical split
+# 0 followed by repeated splits. fixed_parameters: optional one-row XGBoost
+# configuration; when supplied, no inner tuning is run and each outer split
+# costs a single fit.
 pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
                               inner_folds = 10L, grid = pt_default_grid(),
                               n_boot = 2000L, bootstrap_seed = 47001L,
                               threads = 2L, resume = TRUE,
-                              preprocessing = "training_fold") {
+                              preprocessing = "training_fold",
+                              manifests = NULL, fixed_parameters = NULL) {
   pt_require_packages()
-  preprocessing <- match.arg(preprocessing, c("archived_final", "training_fold"))
+  preprocessing <- match.arg(preprocessing, c("archived_final", "training_fold", "unchanged"))
   prepared <- pt_validate_prepared(prepared)
   pr_check_text(framework, "framework")
   if (length(framework) != 1L) stop("Supply one framework per run.")
@@ -321,12 +366,31 @@ pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
   }
   pr_check_integers(bootstrap_seed, "bootstrap_seed")
   if (length(bootstrap_seed) != 1L) stop("bootstrap_seed must be a scalar.")
-  grid <- pt_validate_grid(grid)
-  manifests <- pr_repeated_splits(prepared$patients, seeds)
+  tuned <- is.null(fixed_parameters)
+  if (tuned) grid <- pt_validate_grid(grid) else {
+    fixed_parameters <- pt_validate_grid(fixed_parameters)
+    if (nrow(fixed_parameters) != 1L) stop("fixed_parameters must have exactly one row.")
+    grid <- fixed_parameters
+  }
+  if (is.null(manifests)) {
+    manifests <- pr_repeated_splits(prepared$patients, seeds)
+  } else {
+    manifests <- manifests[, c("split_id", "split_seed", "patient_id", "cancer_type", "partition")]
+    manifests$split_id <- as.character(manifests$split_id)
+    for (split in unique(manifests$split_id)) {
+      ids <- manifests$patient_id[manifests$split_id == split]
+      if (anyDuplicated(ids) || !setequal(ids, prepared$patients$patient_id)) {
+        stop("Supplied manifest split ", split, " does not cover the prepared cohort exactly.")
+      }
+    }
+  }
+  split_ids <- unique(manifests$split_id)
+  seeds <- vapply(split_ids, function(id) manifests$split_seed[manifests$split_id == id][1], numeric(1))
   manifests$truth <- prepared$patients$truth[match(manifests$patient_id, prepared$patients$patient_id)]
-  for (split in unique(manifests$split_id)) {
+  for (split in split_ids) {
     m <- manifests[manifests$split_id == split, , drop = FALSE]
-    if (any(table(factor(m$truth[m$partition == "train"], levels = c("1", "2"))) < inner_folds) ||
+    min_train <- if (tuned) inner_folds else 1L
+    if (any(table(factor(m$truth[m$partition == "train"], levels = c("1", "2"))) < min_train) ||
         !setequal(m$truth[m$partition == "test"], c("1", "2"))) {
       stop("Split ", split, " lacks sufficient training/test classes; inspect cohort and explicit seeds.")
     }
@@ -337,10 +401,16 @@ pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
     if (is.function(value)) paste(deparse(value), collapse = "\n") else NULL
   })
   packages <- c("caret", "digest", "xgboost")
-  settings <- list(framework = framework, seeds = seeds, inner_folds = inner_folds,
-                   grid = grid, n_boot = n_boot, bootstrap_seed = bootstrap_seed,
-                   threads = threads, positive_class = "1", cutoff = .5,
-                   selection_metric = "Accuracy", preprocessing = preprocessing,
+  # Thread count is recorded in the manifest but excluded from the signature,
+  # so an interrupted run can resume with a different number of threads.
+  settings <- list(framework = framework, manifest_hash = pt_hash(manifests),
+                   inner_folds = if (tuned) inner_folds else NA_integer_,
+                   grid = grid, tuning = if (tuned) "inner CV per outer split" else "fixed parameters",
+                   n_boot = n_boot, bootstrap_seed = bootstrap_seed,
+                   positive_class = "1", cutoff = .5,
+                   tree_method = getOption("cnsml.xgb_tree_method", "auto"),
+                   selection_metric = if (tuned) "Accuracy" else NA_character_,
+                   preprocessing = preprocessing,
                    low_cv_fraction = if (preprocessing == "training_fold") .2 else NA_real_,
                    correlation_cutoff = if (preprocessing == "training_fold") .90 else NA_real_,
                    scaling = if (preprocessing == "training_fold") "training RMS; no centering" else "archived predictors unchanged",
@@ -363,68 +433,83 @@ pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
     }
     pt_atomic_save(list(signature = signature, settings = settings,
                         data_hash = data_hash, source_hash = pt_hash(source_bodies),
-                        created = as.character(Sys.time()), session = capture.output(sessionInfo())), manifest_path)
+                        created = as.character(Sys.time()), threads = threads,
+                        session = capture.output(sessionInfo())), manifest_path)
   }
   utils::write.csv(manifests, file.path(output_dir, "split_manifest.csv"), row.names = FALSE)
   checkpoint_dir <- file.path(output_dir, "checkpoints")
   dir.create(checkpoint_dir, showWarnings = FALSE)
   completed <- vector("list", length(seeds))
-  for (k in seq_along(seeds)) {
-    path <- file.path(checkpoint_dir, sprintf("split_%03d_seed_%d.rds", k, seeds[k]))
+  for (k in seq_along(split_ids)) {
+    id <- split_ids[k]
+    path <- file.path(checkpoint_dir, sprintf("split_%03d_seed_%d.rds", as.integer(id), as.integer(seeds[k])))
     if (resume && file.exists(path)) {
       cached <- readRDS(path)
       if (!identical(cached$signature, signature)) stop("Checkpoint signature mismatch: ", path)
-      message(framework, ": resume completed split ", k, "/", length(seeds))
+      message(framework, ": resume completed split ", id, " (", k, "/", length(split_ids), ")")
       completed[[k]] <- cached
       next
     }
-    message(framework, ": fitting split ", k, "/", length(seeds), " (seed ", seeds[k], ")")
-    m <- manifests[manifests$split_id == as.character(k), , drop = FALSE]
+    message(framework, ": fitting split ", id, " (", k, "/", length(split_ids), ", seed ", seeds[k], ")")
+    m <- manifests[manifests$split_id == id, , drop = FALSE]
     train <- m$patient_id[m$partition == "train"]
     test <- m$patient_id[m$partition == "test"]
     train_x <- prepared$x[train, , drop = FALSE]
     truth <- prepared$patients$truth[match(train, prepared$patients$patient_id)]
-    tuning <- pt_inner_tune(train_x, truth, prepared$feature_type, grid,
-                            inner_folds, pt_seed(seeds[k], 1000L), threads, preprocessing)
+    tuning <- if (tuned) pt_inner_tune(train_x, truth, prepared$feature_type, grid,
+                                       inner_folds, pt_seed(seeds[k], 1000L), threads, preprocessing) else
+      list(best_parameters = fixed_parameters, cv_results = NULL, folds = list())
     filter <- pt_fit_preprocessor(train_x, prepared$feature_type, preprocessing = preprocessing)
-    message("  Refit selected model on the complete outer training set")
+    message("  Fit ", if (tuned) "selected" else "fixed", " model on the complete outer training set")
     model <- pt_xgb_fit(pt_apply_preprocessor(train_x, filter), truth,
                         tuning$best_parameters, pt_seed(seeds[k], 1000000L), threads)
     probability <- pt_xgb_predict(model, pt_apply_preprocessor(prepared$x[test, , drop = FALSE], filter))
     patients <- prepared$patients[match(test, prepared$patients$patient_id), , drop = FALSE]
-    predictions <- data.frame(framework = framework, split_id = as.character(k),
+    predictions <- data.frame(framework = framework, split_id = id,
                               split_seed = seeds[k], patients,
                               probability_cluster1 = probability,
                               predicted = ifelse(probability >= .5, "1", "2"), row.names = NULL)
     boot <- pr_bootstrap_test_f1(predictions, n_boot, pt_seed(bootstrap_seed, k - 1L))
+    extra <- pr_classification_metrics(predictions$truth, predictions$probability_cluster1,
+                                       predictions$predicted)
     filters <- do.call(rbind, c(lapply(tuning$folds, function(f) {
-      cbind(framework = framework, split_id = as.character(k), fold = f$fold,
+      cbind(framework = framework, split_id = id, fold = f$fold,
             training_ids_hash = f$preprocessor$training_ids_hash, f$preprocessor$counts)
-    }), list(cbind(framework = framework, split_id = as.character(k), fold = "outer_refit",
+    }), list(cbind(framework = framework, split_id = id, fold = "outer_refit",
                     training_ids_hash = filter$training_ids_hash, filter$counts))))
-    result <- list(signature = signature, framework = framework, split_id = as.character(k),
+    result <- list(signature = signature, framework = framework, split_id = id,
                    split_seed = seeds[k], predictions = predictions,
-                   best_parameters = cbind(framework = framework, split_id = as.character(k), tuning$best_parameters),
-                   cv_results = cbind(framework = framework, split_id = as.character(k), tuning$cv_results),
+                   best_parameters = cbind(framework = framework, split_id = id, tuning$best_parameters),
+                   cv_results = if (tuned) cbind(framework = framework, split_id = id, tuning$cv_results),
                    inner_audit = tuning$folds, outer_preprocessor = filter,
                    outer_training_ids = train, outer_test_ids = test,
                    filters = filters, bootstrap = boot$bootstrap,
-                   split_metrics = cbind(split_seed = seeds[k], boot$summary),
+                   split_metrics = cbind(split_seed = seeds[k], boot$summary, extra),
                    model_raw = xgboost::xgb.save.raw(model))
     pt_atomic_save(result, path)
     completed[[k]] <- result
   }
   bind <- function(name) do.call(rbind, lapply(completed, `[[`, name))
   metrics <- bind("split_metrics")
-  f1 <- metrics$f1
-  summary <- data.frame(framework = framework, n_splits = length(seeds),
-                         mean_f1 = mean(f1), sd_f1 = if (length(f1) > 1L) stats::sd(f1) else NA_real_,
-                         median_f1 = stats::median(f1), min_f1 = min(f1), max_f1 = max(f1))
+  # Across-split summaries describe the repeated splits; the reconstructed
+  # historical split 0, when present, is reported separately in split_metrics.
+  repeated <- metrics[metrics$split_id != "0", , drop = FALSE]
+  summarise <- function(v) c(mean = mean(v), sd = if (length(v) > 1L) stats::sd(v) else NA_real_,
+                             median = stats::median(v), q025 = unname(stats::quantile(v, .025)),
+                             q975 = unname(stats::quantile(v, .975)), min = min(v), max = max(v))
+  summary <- data.frame(framework = framework, n_splits = nrow(repeated),
+    do.call(cbind, lapply(c("f1", "auroc", "average_precision", "mcc", "balanced_accuracy"),
+      function(metric) {
+        values <- summarise(repeated[[metric]])
+        stats::setNames(as.data.frame(as.list(values)), paste0(names(values), "_", metric))
+      })),
+    trivial_f1 = mean(repeated$trivial_f1), prevalence_cluster1 = mean(repeated$prevalence_cluster1))
   result <- list(predictions = bind("predictions"), split_metrics = metrics,
                  split_summary = summary, bootstrap = bind("bootstrap"),
                  manifests = manifests, filters = bind("filters"),
                  best_parameters = bind("best_parameters"), cv_results = bind("cv_results"))
   for (name in names(result)) {
+    if (is.null(result[[name]])) next
     utils::write.csv(result[[name]], file.path(output_dir, paste0(name, ".csv")), row.names = FALSE)
   }
   preprocessing_notes <- if (preprocessing == "training_fold") c(
@@ -433,10 +518,13 @@ pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
     "Correlation pruning is joint across expression/methylation, as in the original pipeline.",
     "Other features receive only finite/constant checks and training RMS scaling.",
     "Nonfinite assessment values are passed as missing to XGBoost; no test-based filtering/imputation is fitted."
-  ) else c("Archived final predictor matrix used unchanged; no new feature filtering or scaling.",
+  ) else if (preprocessing == "unchanged") c("Predictors used unchanged; missing values are passed to XGBoost.") else c("Archived final predictor matrix used unchanged; no new feature filtering or scaling.",
            "Split stability is conditional on the original global preprocessing; this run does not resolve that limitation.")
   writeLines(c("Positive class: Cluster 1. Outer hold-out: 80/20 by cancer type.",
-               "Inner CV: class-stratified; Accuracy selects parameters; probability cutoff = 0.5.",
+               if (tuned) "Inner CV: class-stratified; Accuracy selects parameters; probability cutoff = 0.5." else
+                 paste("Fixed XGBoost parameters (tuned once on the historical training set); probability cutoff = 0.5:",
+                       paste(names(fixed_parameters), unlist(fixed_parameters), sep = "=", collapse = ", ")),
+               "Split 0, when present, reconstructs the historical seed-1234 partition and is excluded from across-split summaries.",
                preprocessing_notes,
                "F1 intervals: 95% percentile bootstrap of test patients within cancer type, conditional on the fitted model.",
                "Across-split SD/range describe refitting variability; overlapping splits are not independent studies.",
