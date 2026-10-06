@@ -204,8 +204,12 @@ pt_validate_grid <- function(grid) {
   grid
 }
 
+# x can be a matrix or a prebuilt xgb.DMatrix (with labels). XGBoost data live
+# outside R's heap, so R does not see their size and collects them late:
+# callers reuse one DMatrix per training set and call gc() after each fit.
 pt_xgb_fit <- function(x, truth, params, seed, threads) {
-  dtrain <- xgboost::xgb.DMatrix(x, label = as.integer(truth == "1"))
+  dtrain <- if (inherits(x, "xgb.DMatrix")) x else
+    xgboost::xgb.DMatrix(x, label = as.integer(truth == "1"), nthread = as.integer(threads))
   args <- as.list(params[1L, setdiff(names(params), "nrounds"), drop = FALSE])
   args$objective <- "binary:logistic"
   # "auto" means exact greedy in XGBoost < 2.0 and hist from 2.0 onwards, so
@@ -228,7 +232,7 @@ pt_xgb_iteration_range <- function(nrounds, version = utils::packageVersion("xgb
 }
 
 pt_xgb_predict <- function(model, x, nrounds = NULL) {
-  dm <- xgboost::xgb.DMatrix(x)
+  dm <- if (inherits(x, "xgb.DMatrix")) x else xgboost::xgb.DMatrix(x)
   if (is.null(nrounds)) return(as.numeric(predict(model, dm)))
   method <- getS3method("predict", "xgb.Booster")
   if ("iterationrange" %in% names(formals(method))) {
@@ -272,7 +276,7 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
   groups <- split(seq_len(nrow(grid)), factor(group_key, levels = unique(group_key)))
   audit <- vector("list", length(validation))
   for (f in seq_along(validation)) {
-    message("  Inner fold ", f, "/", length(validation), ": ",
+    message("  [", format(Sys.time(), "%m-%d %H:%M"), "] Inner fold ", f, "/", length(validation), ": ",
             if (preprocessing == "training_fold") "fit filters; " else "keep archived predictors; ",
             length(groups), " model paths")
     valid_idx <- validation[[f]]; train_idx <- setdiff(seq_len(nrow(x)), valid_idx)
@@ -283,17 +287,23 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
     audit[[f]] <- list(fold = names(validation)[f], preprocessor = filter,
                        validation_ids = rownames(x)[valid_idx],
                        validation_ids_hash = pt_hash(rownames(x)[valid_idx]))
+    # One DMatrix per fold, reused by every configuration and prediction.
+    dtrain <- xgboost::xgb.DMatrix(train_x, label = as.integer(truth[train_idx] == "1"),
+                                   nthread = as.integer(threads))
+    dvalid <- xgboost::xgb.DMatrix(valid_x, nthread = as.integer(threads))
+    rm(train_x, valid_x)
     for (g in seq_along(groups)) {
       idx <- groups[[g]]
       longest <- idx[which.max(grid$nrounds[idx])]
-      fit <- pt_xgb_fit(train_x, truth[train_idx], grid[longest, , drop = FALSE],
+      fit <- pt_xgb_fit(dtrain, truth[train_idx], grid[longest, , drop = FALSE],
                         pt_seed(seed, f * 10000L + g), threads)
       for (candidate in idx) {
-        prob <- pt_xgb_predict(fit, valid_x, grid$nrounds[candidate])
+        prob <- pt_xgb_predict(fit, dvalid, grid$nrounds[candidate])
         accuracy[candidate, f] <- mean(ifelse(prob >= .5, "1", "2") == truth[valid_idx])
       }
-      rm(fit)
+      rm(fit); invisible(gc(verbose = FALSE))
     }
+    rm(dtrain, dvalid); invisible(gc(verbose = FALSE))
   }
   results <- cbind(grid, mean_accuracy = rowMeans(accuracy),
                    sd_accuracy = apply(accuracy, 1L, stats::sd), as.data.frame(accuracy))
@@ -521,6 +531,7 @@ pt_run_prediction <- function(prepared, framework, output_dir, seeds = 1:20,
                    model_raw = xgboost::xgb.save.raw(model))
     pt_atomic_save(result, path)
     completed[[k]] <- result
+    rm(model, train_x, result); invisible(gc(verbose = FALSE))
   }
   bind <- function(name) do.call(rbind, lapply(completed, `[[`, name))
   metrics <- bind("split_metrics")

@@ -43,20 +43,33 @@ fold, no purity, scalar baseline) are implemented in the same script
 (`--variants`) and use the same saved partitions; they are not part of this
 run.
 
-## Running on the workstation
+## Running
 
 Input: `final_matrices.RData` (Zenodo record 20617051) in
-`data/processed/zenodo/` or the repository root. Inside `tmux`, one pipeline
-per framework runs in parallel (tuning on split 0, evaluation, tuning check on
-split 1), followed by the report. Logs go to `logs/`:
+`data/processed/zenodo/` or the repository root.
+
+On the SLURM cluster (recommended), from the repository root:
 
 ```bash
-THREADS=4 bash code/revision/run_prediction_fixed.sh
+bash code/revision/submit_prediction_slurm.sh
 ```
+
+Per framework this submits the tuning on split 0, the evaluation (started
+automatically when that tuning succeeds) and the check tuning on split 1 (in
+parallel), plus a final report job. Each job uses 32 CPUs and 64 GB by default
+(`CPUS`, `MEM`); `FRAMEWORKS="Tao"` submits a subset and `MAIL=address` adds
+end/failure e-mails. Monitor with `squeue -u $USER`; logs are in
+`logs/slurm_*.out`, with a timestamp on every inner CV fold.
+
+Without SLURM, `THREADS=4 bash code/revision/run_prediction_fixed.sh` runs the
+same steps in parallel processes (logs in `logs/`, progress in
+`logs/status.log`).
 
 Each completed split is checkpointed and rerunning resumes. Checkpoints are
 tied to the data, settings and code; the thread count can change between runs.
-Progress: `cat logs/status.log`.
+Saved tuning is reused only if training patients, folds, seed and tree method
+match. XGBoost data are freed after every fit, so memory stays at a few GB per
+framework.
 
 ## Input cohorts
 

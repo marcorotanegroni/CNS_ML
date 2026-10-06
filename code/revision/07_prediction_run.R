@@ -160,8 +160,12 @@ pr_framework_manifests <- function(prepared, path, seeds = 20261001L + 0:19) {
       stop("Saved split manifest differs from the reconstructed one: ", path)
     }
   } else {
+    # Atomic write: concurrent jobs for the same framework (e.g. tuning on
+    # split 0 and split 1) may reach this point together.
     dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-    utils::write.csv(manifests, path, row.names = FALSE)
+    tmp <- tempfile(pattern = "manifest-", tmpdir = dirname(path), fileext = ".csv")
+    utils::write.csv(manifests, tmp, row.names = FALSE)
+    if (!file.rename(tmp, path)) stop("Could not save split manifest: ", path)
   }
   manifests
 }
