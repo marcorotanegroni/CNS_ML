@@ -79,7 +79,8 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
 
   message("[", format(Sys.time()), "] Loading archived inputs for ", framework)
   inputs <- pi_load_inputs(final_path, cluster_path = cluster_path,
-                           output_dir = file.path(root, "inputs"), input_mode = "archived_final")
+                           output_dir = file.path(root, "inputs", framework),
+                           input_mode = "archived_final", frameworks = framework)
   prepared <- pi_prepare_framework(inputs, framework)
   rm(inputs); invisible(gc())
   manifests <- pr_framework_manifests(prepared, file.path(root, "manifests", paste0(framework, ".csv")))
@@ -127,8 +128,8 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   if (any(c("training_fold", "training_fold_no_purity") %in% variants)) {
     message("[", format(Sys.time()), "] Loading pre-filter inputs for ", framework)
     inputs <- pi_load_inputs(final_path, normalized_path, cluster_path,
-                             output_dir = file.path(root, "inputs_training_fold"),
-                             input_mode = "training_fold")
+                             output_dir = file.path(root, "inputs_training_fold", framework),
+                             input_mode = "training_fold", frameworks = framework)
     prepared <- pi_prepare_framework(inputs, framework)
     rm(inputs); invisible(gc())
     if ("training_fold" %in% variants) run_variant("training_fold", prepared, "training_fold")

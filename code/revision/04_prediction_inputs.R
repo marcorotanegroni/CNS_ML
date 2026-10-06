@@ -28,7 +28,8 @@ pi_check_ids <- function(ids, label) {
 
 pi_load_inputs <- function(final_path, normalized_path = NULL, cluster_path,
                            output_dir = NULL,
-                           input_mode = c("archived_final", "training_fold")) {
+                           input_mode = c("archived_final", "training_fold"),
+                           frameworks = c("Drews", "Steele", "Tao")) {
   input_mode <- match.arg(input_mode)
   paths <- c(final_matrices = final_path, clusters = cluster_path)
   if (input_mode == "training_fold") {
@@ -56,8 +57,13 @@ pi_load_inputs <- function(final_path, normalized_path = NULL, cluster_path,
     "Loading final matrices; retaining clinical/mutation predictors only...")
   load(final_path, envir = fenv)
   if (!all(spec$objects %in% ls(fenv))) stop("Missing final matrix objects.")
-  extras <- audits <- vector("list", 3L)
-  names(extras) <- names(audits) <- names(spec$objects)
+  if (!length(frameworks) || any(!frameworks %in% names(spec$objects))) stop("Invalid frameworks.")
+  # Free the matrices of frameworks not requested before building predictors:
+  # each prepared matrix is several GB.
+  rm(list = unname(spec$objects[!names(spec$objects) %in% frameworks]), envir = fenv)
+  invisible(gc())
+  extras <- audits <- vector("list", length(frameworks))
+  names(extras) <- names(audits) <- frameworks
   for (framework in names(extras)) {
     object <- spec$objects[[framework]]
     final <- fenv[[object]]
