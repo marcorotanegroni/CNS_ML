@@ -208,8 +208,8 @@ pt_xgb_fit <- function(x, truth, params, seed, threads) {
   dtrain <- xgboost::xgb.DMatrix(x, label = as.integer(truth == "1"))
   args <- as.list(params[1L, setdiff(names(params), "nrounds"), drop = FALSE])
   args$objective <- "binary:logistic"
-  # "auto" reproduces caret's historical default (exact greedy for this data
-  # size); "hist" is the histogram algorithm, much faster with ~35,000 features.
+  # "auto" means exact greedy in XGBoost < 2.0 and hist from 2.0 onwards, so
+  # the revision workflow sets the algorithm explicitly (default hist).
   args$tree_method <- getOption("cnsml.xgb_tree_method", "auto")
   args$nthread <- as.integer(threads)
   args$verbosity <- 0L

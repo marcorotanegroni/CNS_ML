@@ -18,15 +18,15 @@
 #           (not part of the R1 run; scalar source still to be decided).
 # report    combine the completed variants into summary tables and a figure.
 #
-# Options: --variants a,b  --splits 0,1,2  --tune_split 0|1  --tree_method auto|hist (default auto,
-# i.e. caret's historical exact algorithm, as in the manuscript)
+# Options: --variants a,b  --splits 0,1,2  --tune_split 0|1  --tree_method hist|exact (default hist,
+# set explicitly because the meaning of "auto" depends on the XGBoost version)
 # --params eta=0.15,max_depth=2,...
 # (--params overrides tuning, for smoke tests only)  --out <dir>.
 # Completed splits are checkpointed; rerunning the same command resumes.
 
 pr_args <- function(args) {
   out <- list(framework = NULL, step = NULL, threads = 2L, variants = NULL,
-              splits = NULL, params = NULL, out = NULL, tree_method = "auto",
+              splits = NULL, params = NULL, out = NULL, tree_method = "hist",
               tune_split = "0")
   i <- 1L
   while (i <= length(args)) {

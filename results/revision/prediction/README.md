@@ -27,12 +27,13 @@ the workstation run.
 4. `report`: `fixed/summary.csv`, `fixed/all_split_metrics.csv`,
    `fixed/summary.png`, `fixed/tuning_comparison.csv`.
 
-XGBoost uses `tree_method = "auto"`, caret's historical default (exact greedy
-algorithm for this data size), so the outer partition is the only change from
-the manuscript pipeline. In a local check on the reconstructed split 0 of
-Drews, with the configuration selected when tuning was repeated within two
-outer splits (eta 0.15, max_depth 2, 1,000 rounds), F1 was 0.933 (95% CI
-0.916-0.948), against 0.93 in the manuscript. The reconstructed test set has
+XGBoost uses `tree_method = "hist"`, set explicitly: the meaning of the
+default `"auto"` changed in XGBoost 2.0 (exact greedy before, hist after), and
+the version used for the manuscript was not recorded. On the reconstructed
+split 0 of Drews, with the configuration selected when tuning was repeated
+within two outer splits (eta 0.15, max_depth 2, 1,000 rounds), hist gave F1
+0.932 (95% CI 0.915-0.947) and exact 0.933 (0.916-0.948), against 0.93 in the
+manuscript; `--tree_method exact` is available. The reconstructed test set has
 567 patients, including 100 BRCA as in Figure 8d.
 
 Variants for the Reviewer 2 comments (filters refitted within the training
