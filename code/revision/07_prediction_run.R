@@ -84,6 +84,9 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   prepared <- pi_prepare_framework(inputs, framework)
   rm(inputs); invisible(gc())
   manifests <- pr_framework_manifests(prepared, file.path(root, "manifests", paste0(framework, ".csv")))
+  # Training patients of each split, taken before any --splits filtering:
+  # tuning and its provenance check always refer to the complete manifest.
+  all_manifests <- manifests
   if (!is.null(opt$splits)) {
     keep <- strsplit(opt$splits, ",")[[1]]
     manifests <- manifests[manifests$split_id %in% keep, , drop = FALSE]
@@ -92,9 +95,9 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   tuning_dir <- file.path(root, "tuning", framework)
   if (opt$step == "tune") {
     split <- opt$tune_split
-    if (!split %in% manifests$split_id) stop("Unknown --tune_split: ", split)
+    if (!split %in% all_manifests$split_id) stop("Unknown --tune_split: ", split)
     message("[", format(Sys.time()), "] One-off tuning on split ", split, " (", framework, ")")
-    best <- pt_tune_once(prepared, manifests[manifests$split_id == split, ],
+    best <- pt_tune_once(prepared, all_manifests[all_manifests$split_id == split, ],
                          file.path(tuning_dir, paste0("split_", split)),
                          threads = opt$threads)
     print(best)
@@ -105,7 +108,8 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
     best_path <- file.path(tuning_dir, "split_0", "best_parameters.csv")
     if (!file.exists(best_path)) stop("Run --step tune for ", framework, " first.")
     pt_check_tuning(dirname(best_path),
-                    manifests$patient_id[manifests$split_id == "0" & manifests$partition == "train"])
+                    all_manifests$patient_id[all_manifests$split_id == "0" &
+                                               all_manifests$partition == "train"])
     utils::read.csv(best_path)
   }
   fixed <- fixed[, names(pt_default_grid()), drop = FALSE]
@@ -216,11 +220,38 @@ pr_report <- function(root) {
   utils::write.csv(summary, file.path(root, "summary.csv"), row.names = FALSE)
   print(summary, digits = 3)
   if (requireNamespace("ggplot2", quietly = TRUE)) {
+    colours <- c(Drews = "#1f78b4", Steele = "#33a02c", Tao = "#e31a1c")
+    metrics$framework <- factor(metrics$framework, c("Drews", "Steele", "Tao"))
+    # Manuscript figure: F1 only, archived predictors. Repeated splits as
+    # boxes and points; reconstructed original split as a cross with its 95%
+    # bootstrap interval.
+    a <- metrics[metrics$variant == "archived", ]
+    if (nrow(a)) {
+      p <- ggplot2::ggplot(a[a$split_id != "0", ], ggplot2::aes(framework, f1, colour = framework)) +
+        ggplot2::geom_boxplot(outlier.shape = NA, width = .5) +
+        ggplot2::geom_jitter(width = .1, height = 0, size = 1.2, alpha = .7) +
+        ggplot2::geom_errorbar(data = a[a$split_id == "0", ],
+                               ggplot2::aes(ymin = f1_lower_95, ymax = f1_upper_95),
+                               width = .12, colour = "black", position = ggplot2::position_nudge(x = .35)) +
+        ggplot2::geom_point(data = a[a$split_id == "0", ], shape = 4, size = 3, stroke = 1.1,
+                            colour = "black", position = ggplot2::position_nudge(x = .35)) +
+        ggplot2::scale_colour_manual(values = colours, guide = "none") +
+        ggplot2::scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .2)) +
+        ggplot2::theme_bw(base_size = 11) +
+        ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
+                       axis.text = ggplot2::element_text(colour = "black")) +
+        ggplot2::labs(x = NULL, y = "Test-set F1 (Cluster 1)",
+          caption = paste("Boxes and points: 20 repeated cancer-type-stratified 80/20 splits.",
+                          "Cross: reconstructed original split with 95% bootstrap CI."))
+      ggplot2::ggsave(file.path(root, "f1_repeated_splits.png"), p, width = 6, height = 4.5,
+                      dpi = 300, bg = "white")
+      ggplot2::ggsave(file.path(root, "f1_repeated_splits.pdf"), p, width = 6, height = 4.5)
+    }
+    # Exploratory overview (not for the manuscript): all variants and metrics.
     long <- do.call(rbind, lapply(c("f1", "auroc", "mcc"), function(m)
       data.frame(variant = metrics$variant, framework = metrics$framework,
                  split_id = metrics$split_id, metric = m, value = metrics[[m]])))
     long$metric <- factor(long$metric, c("f1", "auroc", "mcc"), c("F1 (Cluster 1)", "AUROC", "MCC"))
-    long$framework <- factor(long$framework, c("Drews", "Steele", "Tao"))
     trivial <- unique(metrics[, c("framework", "trivial_f1")])
     trivial$metric <- factor("F1 (Cluster 1)", levels(long$metric))
     p <- ggplot2::ggplot(long[long$split_id != "0", ], ggplot2::aes(variant, value, colour = framework)) +
@@ -230,12 +261,13 @@ pr_report <- function(root) {
       ggplot2::geom_hline(data = trivial, ggplot2::aes(yintercept = trivial_f1, colour = framework),
                           linetype = "dashed", linewidth = .4) +
       ggplot2::facet_wrap(~metric, scales = "free_y") +
-      ggplot2::scale_colour_manual(values = c(Drews = "#1f78b4", Steele = "#33a02c", Tao = "#e31a1c")) +
+      ggplot2::scale_colour_manual(values = colours) +
       ggplot2::theme_bw(base_size = 10) +
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 30, hjust = 1)) +
       ggplot2::labs(x = NULL, y = NULL, colour = NULL,
-        caption = "Boxes: 20 repeated cancer-type-stratified splits. Crosses: reconstructed original split. Dashed: F1 of predicting Cluster 1 for every patient.")
-    ggplot2::ggsave(file.path(root, "summary.png"), p, width = 12, height = 4.5, dpi = 200, bg = "white")
+        caption = "Exploratory. Boxes: repeated splits. Crosses: reconstructed original split. Dashed: F1 of predicting Cluster 1 for every patient.")
+    ggplot2::ggsave(file.path(root, "exploratory_metrics.png"), p, width = 12, height = 4.5,
+                    dpi = 200, bg = "white")
   }
   invisible(summary)
 }

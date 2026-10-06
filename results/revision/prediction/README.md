@@ -25,7 +25,9 @@ the workstation run.
    Cluster 1 prevalence for reference. Across-split summaries describe the 20
    repeated splits; split 0 is reported separately.
 4. `report`: `fixed/summary.csv`, `fixed/all_split_metrics.csv`,
-   `fixed/summary.png`, `fixed/tuning_comparison.csv`.
+   `fixed/tuning_comparison.csv`, `fixed/f1_repeated_splits.png/.pdf` (F1 only,
+   for the manuscript) and `fixed/exploratory_metrics.png` (all metrics, not
+   for the manuscript).
 
 XGBoost uses `tree_method = "hist"`, set explicitly: the meaning of the
 default `"auto"` changed in XGBoost 2.0 (exact greedy before, hist after), and
