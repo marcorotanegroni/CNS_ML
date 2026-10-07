@@ -144,6 +144,14 @@ Details, outputs and run times are in
 [`results/revision/prediction/README.md`](results/revision/prediction/README.md).
 Synthetic checks: `Rscript code/revision/test_prediction_fixed.R`.
 
+### Supplementary Figure 5
+
+`code/revision/09_supplementary_figure5.R` regenerates the Kaplan-Meier risk
+tables of Figure 6 from the saved cluster assignments, with the steps of
+notebook `03`, and writes them to `results/revision/survival/`. In the
+submitted version the labels of Clusters 1 and 3 were swapped in the Tao
+overall-survival table (panel e); Figure 6 and the other tables are unchanged.
+
 ## Citation
 
 The processed datasets are available from Zenodo:
