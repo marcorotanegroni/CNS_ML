@@ -267,6 +267,21 @@ pt_check_xgboost <- function() {
 # tuning can resume after interruption. only_folds: compute only these folds
 # (e.g. one SLURM job per fold) and return without selecting parameters; a
 # later call without only_folds assembles all folds from the checkpoints.
+# R and package versions plus the code of the functions that determine a
+# fold's accuracies (comments excluded).
+pt_fold_environment <- function() {
+  functions <- c("pt_xgb_fit", "pt_xgb_predict", "pt_xgb_iteration_range",
+                 "pt_fit_preprocessor", "pt_apply_preprocessor", "pt_correlated_columns",
+                 "pr_with_seed", "pt_seed")
+  code <- vapply(functions, function(name) {
+    paste(deparse(get(name, mode = "function"), control = NULL), collapse = "\n")
+  }, character(1))
+  list(R = as.character(getRversion()),
+       packages = vapply(c("xgboost", "caret"), function(p)
+         as.character(utils::packageVersion(p)), character(1)),
+       code = pt_hash(code))
+}
+
 pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
                           preprocessing = "training_fold", checkpoint_dir = NULL,
                           only_folds = NULL) {
@@ -289,12 +304,21 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
     tree_method = getOption("cnsml.xgb_tree_method", "auto"),
     training_ids = rownames(x), truth = truth, features = colnames(x),
     validation_ids = rownames(x)[validation[[f]]]))
+  # Software and code that produced a fold: a resumed tuning must not mix
+  # folds computed with different versions. Checkpoints written before this
+  # record existed (no "environment" field) are accepted with a message.
+  environment <- pt_fold_environment()
   for (f in targets) {
     fold_path <- if (!is.null(checkpoint_dir)) file.path(checkpoint_dir, sprintf("fold_%02d.rds", f))
     if (!is.null(fold_path) && file.exists(fold_path)) {
       saved <- readRDS(fold_path)
       if (!identical(saved$key, fold_key(f))) {
         stop("Fold checkpoint does not match the current data/settings: ", fold_path)
+      }
+      if (is.null(saved$environment)) {
+        message("  Fold checkpoint without software record (earlier version): ", basename(fold_path))
+      } else if (!identical(saved$environment, environment)) {
+        stop("Fold checkpoint was computed with different code or package versions: ", fold_path)
       }
       message("  Inner fold ", f, "/", length(validation), ": reuse checkpoint")
       accuracy[, f] <- saved$accuracy; audit[[f]] <- saved$audit
@@ -329,7 +353,8 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
     }
     rm(dtrain, dvalid); invisible(gc(verbose = FALSE))
     if (!is.null(fold_path)) {
-      pt_atomic_save(list(key = fold_key(f), accuracy = accuracy[, f], audit = audit[[f]]), fold_path)
+      pt_atomic_save(list(key = fold_key(f), environment = environment,
+                          accuracy = accuracy[, f], audit = audit[[f]]), fold_path)
     }
   }
   if (!is.null(only_folds)) return(invisible(list(completed_folds = targets)))

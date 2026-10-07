@@ -53,6 +53,9 @@ node_opt() {  # sets "node" (nodelist option) and "job_mem" for the next slot
 # to a node kept free for them; otherwise SLURM chooses any node.
 main_node=(); main_mem=$MEM
 if [ -n "${MAIN_NODE:-}" ]; then main_node=(--nodelist="$MAIN_NODE"); fi
+# A job whose dependency can no longer be satisfied (e.g. a failed fold) is
+# cancelled instead of waiting forever; resubmitting resumes from checkpoints.
+dep_kill=(--kill-on-invalid-dep=yes)
 
 submit_folds() {  # $1 framework, $2 tuning split -> sets fold_ids (colon-joined)
   # Runs in the current shell (not $(...)) so the node counter advances.
@@ -71,28 +74,28 @@ waits=()
 assemble0=()
 for f in $FRAMEWORKS; do
   submit_folds "$f" 0; folds=$fold_ids
-  a=$(sbatch --parsable --cpus-per-task=2 --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} \
+  a=$(sbatch --parsable --cpus-per-task=2 --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} "${dep_kill[@]}" \
     --job-name="assemble0_$f" --dependency="afterok:$folds" "$job" --framework "$f" --step tune)
   assemble0+=("$a")
   echo "$f: split-0 fold jobs $folds; assembly $a"
 done
 i=0
 for f in $FRAMEWORKS; do
-  e=$(sbatch --parsable --cpus-per-task="$CPUS_EVAL" --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} \
+  e=$(sbatch --parsable --cpus-per-task="$CPUS_EVAL" --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} "${dep_kill[@]}" \
     --job-name="eval_$f" --dependency="afterok:${assemble0[$i]}" "$job" --framework "$f" --step evaluate)
   echo "$f: evaluation $e (after ${assemble0[$i]})"
   waits+=("$e"); i=$((i + 1))
 done
 for f in $FRAMEWORKS; do
   submit_folds "$f" 1; folds=$fold_ids
-  a=$(sbatch --parsable --cpus-per-task=2 --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} \
+  a=$(sbatch --parsable --cpus-per-task=2 --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} "${dep_kill[@]}" \
     --job-name="assemble1_$f" --dependency="afterok:$folds" "$job" --framework "$f" \
     --step tune --tune_split 1)
   echo "$f: split-1 fold jobs $folds; assembly $a"
   waits+=("$a")
 done
 deps=$(IFS=:; echo "${waits[*]}")
-report=$(sbatch --parsable --cpus-per-task=1 --mem=8gb ${main_node[@]+"${main_node[@]}"} --job-name=report \
+report=$(sbatch --parsable --cpus-per-task=1 --mem=8gb ${main_node[@]+"${main_node[@]}"} "${dep_kill[@]}" --job-name=report \
   --dependency="afterany:$deps" "$job" --step report)
 echo "report $report (after all evaluations and split-1 assemblies)"
 echo "Check with: squeue -u \$USER ; logs in logs/slurm_*.out"

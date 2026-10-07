@@ -103,6 +103,23 @@ best_pieces <- pt_tune_once(prepared, m0, pieces, grid = small_grid, inner_folds
 stopifnot(identical(best_whole, best_pieces),
           identical(read.csv(file.path(whole, "cv_results.csv")),
                     read.csv(file.path(pieces, "cv_results.csv"))))
+# Fold checkpoints record software and code; a legacy checkpoint without that
+# record is accepted, one from a different environment is refused.
+fold1 <- file.path(pieces, "checkpoints", "fold_01.rds")
+saved1 <- readRDS(fold1)
+stopifnot(!is.null(saved1$environment), identical(saved1$environment, pt_fold_environment()))
+train0_ids <- m0$patient_id[m0$partition == "train"]
+retune <- function() pt_inner_tune(prepared$x[train0_ids, ],
+  prepared$patients$truth[match(train0_ids, prepared$patients$patient_id)],
+  prepared$feature_type, pt_validate_grid(small_grid), 3L, 1234L, 1L, "archived_final",
+  checkpoint_dir = file.path(pieces, "checkpoints"), only_folds = 1L)
+invisible(retune())  # unchanged checkpoint is reused
+legacy1 <- saved1; legacy1$environment <- NULL; saveRDS(legacy1, fold1)
+invisible(retune())
+changed1 <- saved1; changed1$environment$packages[["xgboost"]] <- "0.0.1"; saveRDS(changed1, fold1)
+stopifnot(inherits(try(retune(), silent = TRUE), "try-error"))
+saveRDS(saved1, fold1)
+
 # A fold checkpoint from different settings is refused, not silently reused.
 other_grid <- small_grid; other_grid$eta <- .2
 stopifnot(inherits(try(pt_inner_tune(prepared$x[m0$patient_id[m0$partition == "train"], ],
@@ -139,4 +156,5 @@ unlink(c(out, root), recursive = TRUE)
 cat("Fixed-parameter workflow passed: split 0 reconstruction, supplied manifests,",
     "single fit per split, extra metrics, thread-independent resume, missing-value mode,",
     "split-0/split-1 tuning and report, tie-invariant average precision,",
-    "undefined MCC, tuning provenance checks, fold jobs assembled = whole tuning.\n")
+    "undefined MCC, tuning provenance checks, fold jobs assembled = whole tuning,",
+    "fold software records.\n")
