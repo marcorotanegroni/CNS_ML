@@ -1,7 +1,7 @@
 #!/bin/bash
 # Submit the revised predictive benchmark (R1 major comment 2) to SLURM.
 # Run from the repository root:
-#   NODES="xen7:64:40 xen5:38:40 xen3:32:28" bash code/revision/submit_prediction_slurm.sh
+#   NODES="xen7:64:62 xen5:40:99 xen3:32:30" MAIN_NODE=xen8 bash code/revision/submit_prediction_slurm.sh
 #
 # Each inner-CV fold of each tuning is a separate job, checkpointed on
 # completion; an assembly job then selects the configuration from the saved
@@ -17,6 +17,8 @@
 #               on that node (default: SLURM chooses nodes, MEM per job)
 #   CPUS        CPUs per fold job (default 8); MEM memory per job (default 24gb)
 #   CPUS_EVAL   CPUs for each evaluation job (default 16)
+#   MAIN_NODE   node for assembly, evaluation and report jobs (default: any);
+#               use a node not listed in NODES so they never wait for folds
 #   FRAMEWORKS  subset, e.g. "Tao" (default "Tao Steele Drews")
 #   MAIL        address for end/failure e-mails
 set -euo pipefail
@@ -37,7 +39,6 @@ if [ -n "${NODES:-}" ]; then
       m = ($3 != "") ? $3 "gb" : mem
       for (i = 0; i < n; i++) printf "%.6f %s %s\n", (i + 0.5) / n, $1, m }' |
       sort -n | awk '{print $2, $3}')
-  first_node=${slots[0]}
 fi
 next=0
 node_opt() {  # sets "node" (nodelist option) and "job_mem" for the next slot
@@ -47,8 +48,11 @@ node_opt() {  # sets "node" (nodelist option) and "job_mem" for the next slot
     next=$(( (next + 1) % ${#slots[@]} ))
   fi
 }
+# Assembly, evaluation and report jobs are not tied to the fold nodes: pinned
+# to a node full of fold jobs they would wait for hours. MAIN_NODE pins them
+# to a node kept free for them; otherwise SLURM chooses any node.
 main_node=(); main_mem=$MEM
-if [ -n "${first_node:-}" ]; then main_node=(--nodelist="$first_node"); main_mem=${slot_mem[0]}; fi
+if [ -n "${MAIN_NODE:-}" ]; then main_node=(--nodelist="$MAIN_NODE"); fi
 
 submit_folds() {  # $1 framework, $2 tuning split -> sets fold_ids (colon-joined)
   # Runs in the current shell (not $(...)) so the node counter advances.

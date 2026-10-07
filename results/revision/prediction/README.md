@@ -51,7 +51,7 @@ Input: `final_matrices.RData` (Zenodo record 20617051) in
 On the SLURM cluster (recommended), from the repository root:
 
 ```bash
-NODES="xen7:64:40 xen5:38:40 xen3:32:28" bash code/revision/submit_prediction_slurm.sh
+NODES="xen7:64:62 xen5:40:99 xen3:32:30" MAIN_NODE=xen8 bash code/revision/submit_prediction_slurm.sh
 ```
 
 Each inner-CV fold of each tuning runs as a separate job (8 CPUs; memory per
@@ -61,8 +61,11 @@ it. Assembling folds computed separately gives exactly the same CV results as
 one complete tuning (checked in `test_prediction_fixed.R`). Per framework:
 split-0 fold jobs -> assembly -> evaluation; split-1 fold jobs -> assembly
 (check). Fold jobs are spread over `NODES` in proportion to their cores and a
-final report job waits for all jobs. Options: `CPUS`, `MEM`, `CPUS_EVAL`,
-`FRAMEWORKS`, `MAIL`. Resubmitting the same command after an interruption
+final report job waits for all jobs. Assembly, evaluation and report jobs run
+on `MAIN_NODE` (a node not used for folds) or wherever SLURM finds room.
+Options: `CPUS`, `MEM`, `CPUS_EVAL`, `FRAMEWORKS`, `MAIL`. Observed: one fold
+takes about 7.5 h (Drews), 7-10 h (Steele) and 8-11.5 h (Tao) with 8 CPUs;
+peak memory about 9 GB (Drews) to 14 GB (Tao). Resubmitting the same command after an interruption
 (for example the 95-hour limit) skips completed folds and splits. Monitor with
 `squeue -u $USER`; logs are in `logs/slurm_*.out`.
 
