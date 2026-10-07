@@ -227,6 +227,17 @@ pi_drop_features <- function(prepared, source_names) {
   prepared
 }
 
+# Restrict the predictors to the given feature types (e.g. "expression" for
+# the expression-only models of the manuscript).
+pi_keep_feature_types <- function(prepared, types) {
+  keep <- prepared$feature_type[colnames(prepared$x)] %in% types
+  if (!any(keep)) stop("No predictors of type: ", paste(types, collapse = ", "))
+  prepared$x <- prepared$x[, keep, drop = FALSE]
+  prepared$feature_type <- prepared$feature_type[colnames(prepared$x)]
+  prepared$feature_map <- prepared$feature_map[prepared$feature_map$feature %in% colnames(prepared$x), ]
+  prepared
+}
+
 # Scalar copy-number baseline (R2): ploidy, fraction of the genome with loss of
 # heterozygosity (ASCAT frac_homo) and number of copy number alterations, from
 # the ASCAT penalty-70 TCGA fits distributed with Drews et al. One primary

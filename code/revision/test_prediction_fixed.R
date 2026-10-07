@@ -59,6 +59,15 @@ prepared$feature_map <- data.frame(feature = colnames(x), source_name = c("age",
                                    feature_type = "other")
 dropped <- pi_drop_features(prepared, "purity")
 stopifnot(!"f2" %in% colnames(dropped$x), ncol(dropped$x) == 5L)
+# Keeping one feature type (expression-only models).
+typed <- prepared
+typed$feature_type <- setNames(c("other", "other", "expression", "expression", "methylation", "expression"),
+                               colnames(x))
+typed$feature_map$feature_type <- unname(typed$feature_type)
+expr <- pi_keep_feature_types(typed, "expression")
+stopifnot(identical(colnames(expr$x), c("f3", "f4", "f6")),
+          identical(names(expr$feature_type), colnames(expr$x)),
+          identical(expr$feature_map$feature, colnames(expr$x)))
 # Average precision does not depend on the order of tied probabilities and
 # matches the step-wise definition on a hand-computed example.
 y <- c("1", "2", "1", "2", "1"); pr <- c(.9, .5, .5, .5, .1)

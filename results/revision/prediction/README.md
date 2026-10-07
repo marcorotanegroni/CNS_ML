@@ -45,6 +45,10 @@ within two outer splits (eta 0.15, max_depth 2, 1,000 rounds), hist gave F1
 manuscript; `--tree_method exact` is available. The reconstructed test set has
 567 patients, including 100 BRCA as in Figure 8d.
 
+The `expression_only` variant (`--variants expression_only`) refits the same
+fixed configuration on the same saved splits with the archived gene expression
+predictors only, for the manuscript comparison of expression-only classifiers.
+
 Variants for the Reviewer 2 comments (filters refitted within the training
 fold, no purity, scalar baseline) are implemented in the same script
 (`--variants`) and use the same saved partitions; they are not part of this

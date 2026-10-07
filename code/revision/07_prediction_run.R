@@ -13,6 +13,9 @@
 #           partition; evaluation always uses the split-0 configuration.
 # evaluate  fixed tuned parameters, split 0 + 20 repeated cancer-type-stratified
 #           80/20 splits, archived predictors (variant "archived", default).
+#           expression_only: the same fixed parameters and saved splits with
+#           the archived gene expression predictors only (manuscript
+#           comparison of expression-only classifiers).
 #           Optional variants for the later R2 comments run on the same saved
 #           splits: training_fold, training_fold_no_purity, scalar_baseline
 #           (not part of the R1 run; scalar source still to be decided).
@@ -74,8 +77,10 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   variants <- "archived"
   if (!is.null(opt$variants)) {
     variants <- strsplit(opt$variants, ",")[[1]]
-    if (any(!variants %in% c("archived", "training_fold", "training_fold_no_purity",
-                             "scalar_baseline"))) stop("Unknown variant.")
+    if (any(!variants %in% c("archived", "expression_only", "training_fold",
+                             "training_fold_no_purity", "scalar_baseline"))) {
+      stop("Unknown variant.")
+    }
   }
 
   message("[", format(Sys.time()), "] Loading archived inputs for ", framework)
@@ -123,6 +128,9 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
     invisible(gc())
   }
   if ("archived" %in% variants) run_variant("archived", prepared, "archived_final")
+  if ("expression_only" %in% variants) {
+    run_variant("expression_only", pi_keep_feature_types(prepared, "expression"), "archived_final")
+  }
   if ("scalar_baseline" %in% variants) {
     scalar <- pi_scalar_baseline(prepared, ascat_path)
     dir.create(file.path(root, "scalar_baseline"), recursive = TRUE, showWarnings = FALSE)
