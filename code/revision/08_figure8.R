@@ -114,7 +114,8 @@ panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq, fill = da
   scale_y_discrete(drop = TRUE) +
   labs(x = "Signature", y = "Omic") +
   theme_minimal(base_size = 5.5) +
-  theme(axis.text = element_text(colour = "black"), legend.justification = "top")
+  theme(axis.text = element_text(colour = "black"), axis.title = element_text(size = 7.5),
+        legend.justification = "top")
 utils::write.csv(panel_e_data, file.path(out, "panel_e_counts.csv"), row.names = FALSE)
 
 # Panel f: the original Reactome enrichment of the Drews predictors, placed
@@ -127,7 +128,7 @@ panel_f <- if (file.exists(reactome)) {
 # (4080 x 4411 px), LZW-compressed TIFF, a/b, c/d, e/f layout.
 figure <- (accuracy_panel("Drews") | accuracy_panel("Steele")) /
   (accuracy_panel("Tao") | panel_d) /
-  (panel_e + panel_f + plot_layout(widths = c(.4, .6))) +
+  (panel_e + panel_f + plot_layout(widths = c(.34, .66))) +
   plot_annotation(tag_levels = "a") &
   theme(plot.tag = element_text(face = "bold", size = 9))
 size <- c(width = 4080 / 600, height = 4411 / 600)
