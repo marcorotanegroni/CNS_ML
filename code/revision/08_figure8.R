@@ -104,12 +104,17 @@ panel_e_data <- as.data.frame(table(framework = factor(top$framework, frameworks
                                     data_type = factor(top$data_type, type_levels)))
 panel_e_data <- panel_e_data[panel_e_data$Freq > 0, ]
 panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq, fill = data_type)) +
-  geom_point(shape = 21, colour = "black") +
-  scale_size_continuous(range = c(1.5, 7.5), name = "Count") +
-  scale_fill_brewer(palette = "Set1", guide = "none", drop = FALSE) +
-  scale_y_discrete(drop = FALSE) +
+  geom_point(shape = 21, colour = "black", stroke = .3) +
+  scale_size_continuous(range = c(1.5, 7.5), breaks = c(100, 500, 1000, 1500),
+                        limits = c(1, NA), name = "Count") +
+  # Original colours per data type; categories without retained predictors
+  # (e.g. gene-level mutations) are not shown.
+  scale_fill_manual(values = setNames(RColorBrewer::brewer.pal(5, "Set1"), type_levels),
+                    guide = "none") +
+  scale_y_discrete(drop = TRUE) +
   labs(x = "Signature", y = "Omic") +
-  theme_minimal(base_size = 5.5) + theme(axis.text = element_text(colour = "black"))
+  theme_minimal(base_size = 5.5) +
+  theme(axis.text = element_text(colour = "black"), legend.justification = "top")
 utils::write.csv(panel_e_data, file.path(out, "panel_e_counts.csv"), row.names = FALSE)
 
 # Panel f: the original Reactome enrichment of the Drews predictors, placed
