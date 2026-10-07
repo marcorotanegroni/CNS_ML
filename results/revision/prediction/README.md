@@ -1,7 +1,14 @@
 # Repeated held-out cluster classification
 
-Status: workflow implemented and tested; results are written to `fixed/` by
-the workstation run.
+Status: complete. Results in `fixed/` come from the SLURM run (tuning and
+evaluation of all three frameworks, split-1 tuning check); Figure 8 panels a-e
+are regenerated from the split-0 models in `figure8/`.
+
+| Framework | Cluster 1 prevalence (cohort) | Split 0 F1 (95% CI) | Splits 1-20, median F1 (range) |
+| --- | ---: | --- | --- |
+| Drews | 77.6% | 0.926 (0.909-0.942) | 0.934 (0.918-0.947) |
+| Steele | 30.1% | 0.637 (0.588-0.685) | 0.612 (0.583-0.661) |
+| Tao | 27.0% | 0.637 (0.588-0.681) | 0.642 (0.605-0.683) |
 
 ## Design (`code/revision/07_prediction_run.R`)
 
@@ -100,3 +107,13 @@ The input checksum is verified against the Zenodo record.
 `filters.csv`, `evaluation_notes.txt`. Fitted models are stored in ignored
 checkpoints. Repeated predictions of the same patient across splits are never
 pooled.
+
+## Figure 8 (`code/revision/08_figure8.R`, outputs in `figure8/`)
+
+Panels a-e from the split-0 models: test accuracy overall and by cancer type
+(types with at least four test patients), test-set counts, and predictors
+accounting for 80% of cumulative gain by data type
+(`importance_split0_<framework>.csv`, `panel_e_counts.csv`). Panel f, the
+Reactome enrichment of the Drews predictors, is not recomputed: the original
+panel is cropped from the submitted figure (`panel_f_reactome_original.png`).
+`Figure8.tiff` has the submitted format (4080 x 4411 px, 600 dpi, LZW).
