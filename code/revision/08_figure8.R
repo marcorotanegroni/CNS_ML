@@ -1,7 +1,8 @@
 # Figure 8 (panels a-e) from the revised cluster classifiers: the models fitted
 # on split 0 (cancer-type-stratified 80/20 partition, seed 1234) with the
 # saved cluster assignments. Panel f (Reactome enrichment of the Drews
-# predictors) is not regenerated here.
+# predictors) is not recomputed: the original panel is placed from
+# results/revision/prediction/figure8/panel_f_reactome_original.png.
 #
 # Run from the repository root after the prediction workflow:
 #   Rscript code/revision/08_figure8.R
@@ -76,10 +77,16 @@ importance <- do.call(rbind, lapply(frameworks, function(fw) {
   imp <- as.data.frame(xgb.importance(model = booster))
   row <- match(imp$Feature, map$feature)
   imp$variable <- map$source_name[row]
-  type <- map$feature_type[row]
-  type[type == "other" & imp$variable %in% c("age", "purity")] <- "clinical"
-  type[type == "other"] <- "mutation/pathway"
-  imp$data_type <- type
+  # Categories as in the original panel: clinical (age, purity), expression,
+  # methylation, pathway-level mutations (the first 272 columns of the
+  # mutation block) and gene-level mutations.
+  type <- c(expression = "exp", methylation = "meth", other = "other")[map$feature_type[row]]
+  first_mut <- pi_archive_spec()$mutation_start[[fw]]
+  column <- map$source_column[row]
+  type[type == "other" & imp$variable %in% c("age", "purity")] <- "clin"
+  type[type == "other" & column < first_mut + 272L] <- "path_mut"
+  type[type == "other"] <- "mut"
+  imp$data_type <- unname(type)
   imp <- imp[order(-imp$Gain), ]
   imp$cumulative_gain <- cumsum(imp$Gain) / sum(imp$Gain)
   imp$in_80pct <- imp$cumulative_gain <= .80
@@ -89,20 +96,27 @@ importance <- do.call(rbind, lapply(frameworks, function(fw) {
   cbind(framework = fw, imp)
 }))
 top <- importance[importance$in_80pct, ]
-type_levels <- c("clinical", "expression", "methylation", "mutation/pathway")
+type_levels <- c("clin", "exp", "meth", "path_mut", "mut")
 panel_e_data <- as.data.frame(table(framework = factor(top$framework, frameworks),
                                     data_type = factor(top$data_type, type_levels)))
 panel_e_data <- panel_e_data[panel_e_data$Freq > 0, ]
 panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq, fill = data_type)) +
   geom_point(shape = 21, colour = "black") +
-  scale_size_continuous(range = c(2, 14), name = "Count") +
-  scale_fill_brewer(palette = "Set1", guide = "none") +
-  labs(x = "Signature", y = "Data type") +
+  scale_size_continuous(range = c(3, 15), name = "Count") +
+  scale_fill_brewer(palette = "Set1", guide = "none", drop = FALSE) +
+  scale_y_discrete(drop = FALSE) +
+  labs(x = "Signature", y = "Omic") +
   theme_minimal(base_size = 9) + theme(axis.text = element_text(colour = "black"))
 utils::write.csv(panel_e_data, file.path(out, "panel_e_counts.csv"), row.names = FALSE)
 
+# Panel f: the original Reactome enrichment of the Drews predictors, placed
+# from an image file if available (not recomputed here).
+reactome <- file.path(out, "panel_f_reactome_original.png")
+panel_f <- if (file.exists(reactome)) {
+  wrap_elements(full = grid::rasterGrob(png::readPNG(reactome), interpolate = TRUE))
+} else plot_spacer()
 figure <- (accuracy_panel("Drews") | accuracy_panel("Steele")) /
-  (accuracy_panel("Tao") | panel_d) / (panel_e | plot_spacer()) +
+  (accuracy_panel("Tao") | panel_d) / (panel_e | panel_f) +
   plot_annotation(tag_levels = "a")
 ggsave(file.path(out, "figure8_a-e.png"), figure, width = 11, height = 11, dpi = 300, bg = "white")
 ggsave(file.path(out, "figure8_a-e.pdf"), figure, width = 11, height = 11)
