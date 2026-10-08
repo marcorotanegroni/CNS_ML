@@ -121,3 +121,16 @@ accounting for 80% of cumulative gain by data type
 Reactome enrichment of the Drews predictors, is not recomputed: the original
 panel is cropped from the submitted figure (`panel_f_reactome_original.png`).
 `Figure8.tiff` has the submitted format (4080 x 4411 px, 600 dpi, LZW).
+
+## Reactome enrichment (`code/revision/10_reactome_enrichment.R`, outputs in `reactome/`)
+
+The submitted Figure 8f is the STRING enrichment figure (category Reactome,
+whole-genome background, FDR < 0.05). The script repeats that analysis through
+the STRING API (version 12.0, fixed address) on the gene symbols of the
+expression and methylation predictors in the 80%-gain sets of the split-0
+models. Applied to the 300 predictors of the submitted Drews classifier, the
+same procedure returns the main published terms (oxidative-stress-induced and
+cellular senescence, pre-NOTCH transcription and translation, mitotic cell
+cycle), driven largely by histone-cluster methylation features. For the
+revised classifiers no Reactome term reaches FDR < 0.05 in any framework
+(`reactome/summary.csv`), so no panel is drawn.
