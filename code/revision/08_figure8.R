@@ -113,11 +113,14 @@ type_labels <- c(clin = "Clinical", exp = "Expression", meth = "Methylation",
 panel_e_data <- as.data.frame(table(framework = factor(top$framework, frameworks),
                                     data_type = factor(top$data_type, type_levels)))
 panel_e_data <- panel_e_data[panel_e_data$Freq > 0, ]
-# One neutral fill: the y axis identifies the data type, and the framework
-# colours of panels d and f are not reused for a different variable.
-# Categories without retained predictors (e.g. gene-level mutations) are not shown.
-panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq)) +
-  geom_point(shape = 21, colour = "black", fill = "grey70", stroke = .3) +
+# Colours per data type from Set1, avoiding the blue/green/red used for the
+# compendia in panels d and f. Categories without retained predictors (e.g.
+# gene-level mutations) are not shown.
+type_colours <- c(clin = "#999999", exp = "#984ea3", meth = "#ff7f00",
+                  path_mut = "#a65628", mut = "#f781bf")
+panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq, fill = data_type)) +
+  geom_point(shape = 21, colour = "black", stroke = .3) +
+  scale_fill_manual(values = type_colours, guide = "none") +
   scale_size_continuous(range = c(1.5, 7.5), breaks = c(100, 500, 1000, 1500),
                         limits = c(1, NA), name = "Predictors") +
   scale_y_discrete(drop = TRUE, labels = type_labels) +
@@ -142,7 +145,7 @@ prevalence <- sapply(frameworks, function(fw) {
   m <- read.csv(file.path(fixed, fw, "manifests.csv"), colClasses = c(split_id = "character"))
   round(100 * mean(m$truth[m$split_id == "0"] == "1"))
 })
-point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Reconstructed original split, 95% CI"
+point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Original split, 95% CI"
 panel_f <- ggplot() +
   geom_point(data = repeated, aes(f1, row - .13, colour = framework, shape = point_lab),
              position = position_jitter(width = 0, height = .065, seed = 42),
@@ -155,7 +158,6 @@ panel_f <- ggplot() +
   scale_colour_manual(values = colours, guide = "none") +
   scale_shape_manual(name = NULL, breaks = c(point_lab, diamond_lab),
                      values = setNames(c(16, 23), c(point_lab, diamond_lab))) +
-  guides(shape = guide_legend(nrow = 2)) +
   scale_y_continuous(breaks = seq_along(lanes),
                      labels = sprintf("%s\nCluster 1: %d%%", lanes, prevalence[lanes])) +
   scale_x_continuous(breaks = seq(.5, 1, .1)) +
