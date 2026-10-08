@@ -20,6 +20,12 @@ for (f in c("02_prediction_resampling.R", "03_prediction_training.R", "04_predic
 }
 frameworks <- c("Drews", "Steele", "Tao")
 colours <- c(Drews = "#1f78b4", Steele = "#33a02c", Tao = "#e31a1c")
+# Text sizes for the 6.8 x 7.35 in figure: tick labels 6 pt, titles 7 pt.
+fig_theme <- theme_minimal(base_size = 7) +
+  theme(axis.text = element_text(size = 6, colour = "black"),
+        axis.title = element_text(size = 7), legend.text = element_text(size = 6),
+        legend.title = element_text(size = 6.5), strip.text = element_text(size = 6.5, face = "bold"),
+        plot.title = element_text(size = 7, face = "bold", hjust = .5, margin = margin(0, 0, 2, 0)))
 fixed <- "results/revision/prediction/fixed/archived"
 out <- "results/revision/prediction/figure8"
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
@@ -49,10 +55,9 @@ accuracy_panel <- function(fw) {
     geom_col(width = .85) +
     scale_fill_manual(values = c(`TRUE` = "#1f78b4", `FALSE` = "#8fb8d9"), guide = "none") +
     scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .25), expand = c(0, 0)) +
-    labs(x = NULL, y = "Accuracy") +
-    theme_minimal(base_size = 5.5) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, colour = "black"),
-          axis.text.y = element_text(colour = "black"))
+    labs(x = NULL, y = "Accuracy", title = fw) +
+    fig_theme +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1, size = 5.5))
 }
 
 # Panel d: test-set sample counts by cancer type and framework.
@@ -62,13 +67,13 @@ counts$cancer_type <- factor(counts$cancer_type, levels = order_types)
 counts$framework <- factor(counts$framework, levels = frameworks)
 panel_d <- ggplot(counts, aes(Freq, cancer_type, fill = framework)) +
   geom_col(alpha = .6) + facet_wrap(~framework, nrow = 1) +
-  scale_fill_manual(values = colours, name = "Model") +
-  guides(fill = guide_legend(override.aes = list(alpha = 1))) +
-  scale_x_continuous(breaks = seq(0, 150, 30)) +
-  labs(x = "n\u00b0 samples", y = NULL) +
-  theme_minimal(base_size = 5.5) +
-  theme(strip.text = element_text(face = "bold"),
-        axis.text = element_text(colour = "black"))
+  scale_fill_manual(values = colours, guide = "none") +
+  scale_x_continuous(breaks = c(0, 50, 100)) +
+  labs(x = "Number of test samples", y = NULL) +
+  fig_theme +
+  # 33 cancer types: smaller labels so that they do not overlap.
+  theme(axis.text.y = element_text(size = 4.6), panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank(), panel.spacing.x = grid::unit(6, "pt"))
 
 # Panel e: predictors accounting for 80% of cumulative gain in each split-0
 # model, by data type. Feature importance tables are written for reference.
@@ -103,22 +108,22 @@ importance <- do.call(rbind, lapply(frameworks, function(fw) {
 }))
 top <- importance[importance$in_80pct, ]
 type_levels <- c("clin", "exp", "meth", "path_mut", "mut")
+type_labels <- c(clin = "Clinical", exp = "Expression", meth = "Methylation",
+                 path_mut = "Pathway mutations", mut = "Gene mutations")
 panel_e_data <- as.data.frame(table(framework = factor(top$framework, frameworks),
                                     data_type = factor(top$data_type, type_levels)))
 panel_e_data <- panel_e_data[panel_e_data$Freq > 0, ]
-panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq, fill = data_type)) +
-  geom_point(shape = 21, colour = "black", stroke = .3) +
+# One neutral fill: the y axis identifies the data type, and the framework
+# colours of panels d and f are not reused for a different variable.
+# Categories without retained predictors (e.g. gene-level mutations) are not shown.
+panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq)) +
+  geom_point(shape = 21, colour = "black", fill = "grey70", stroke = .3) +
   scale_size_continuous(range = c(1.5, 7.5), breaks = c(100, 500, 1000, 1500),
-                        limits = c(1, NA), name = "Count") +
-  # Original colours per data type; categories without retained predictors
-  # (e.g. gene-level mutations) are not shown.
-  scale_fill_manual(values = setNames(RColorBrewer::brewer.pal(5, "Set1"), type_levels),
-                    guide = "none") +
-  scale_y_discrete(drop = TRUE) +
-  labs(x = "Signature", y = "Omic") +
-  theme_minimal(base_size = 5.5) +
-  theme(axis.text = element_text(colour = "black"), axis.title = element_text(size = 7.5),
-        legend.justification = "top")
+                        limits = c(1, NA), name = "Predictors") +
+  scale_y_discrete(drop = TRUE, labels = type_labels) +
+  labs(x = "Compendium", y = "Data type") +
+  fig_theme +
+  theme(legend.justification = "top")
 utils::write.csv(panel_e_data, file.path(out, "panel_e_counts.csv"), row.names = FALSE)
 
 # Panel f: Cluster 1 test-set F1. Diamonds: reconstructed original split with
@@ -132,8 +137,12 @@ lanes <- rev(frameworks)
 metrics$row <- match(metrics$framework, lanes)
 original <- metrics[metrics$split_id == "0", ]
 repeated <- metrics[metrics$split_id != "0", ]
-prevalence <- round(100 * tapply(metrics$prevalence_cluster1, metrics$framework, mean))
-point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Original split, 95% CI"
+# Cluster 1 proportion in each classification cohort (all eligible patients).
+prevalence <- sapply(frameworks, function(fw) {
+  m <- read.csv(file.path(fixed, fw, "manifests.csv"), colClasses = c(split_id = "character"))
+  round(100 * mean(m$truth[m$split_id == "0"] == "1"))
+})
+point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Reconstructed original split, 95% CI"
 panel_f <- ggplot() +
   geom_point(data = repeated, aes(f1, row - .13, colour = framework, shape = point_lab),
              position = position_jitter(width = 0, height = .065, seed = 42),
@@ -146,13 +155,14 @@ panel_f <- ggplot() +
   scale_colour_manual(values = colours, guide = "none") +
   scale_shape_manual(name = NULL, breaks = c(point_lab, diamond_lab),
                      values = setNames(c(16, 23), c(point_lab, diamond_lab))) +
+  guides(shape = guide_legend(nrow = 2)) +
   scale_y_continuous(breaks = seq_along(lanes),
                      labels = sprintf("%s\nCluster 1: %d%%", lanes, prevalence[lanes])) +
   scale_x_continuous(breaks = seq(.5, 1, .1)) +
   coord_cartesian(xlim = c(.5, 1), ylim = c(.65, 3.35)) +
   labs(x = "Test-set F1 (Cluster 1)", y = NULL) +
-  theme_minimal(base_size = 5.5) +
-  theme(axis.text = element_text(colour = "black"), panel.grid.minor = element_blank(),
+  fig_theme +
+  theme(panel.grid.minor = element_blank(),
         panel.grid.major.y = element_blank(), legend.position = "top",
         legend.key.width = grid::unit(8, "pt"), legend.key.height = grid::unit(8, "pt"),
         legend.margin = margin(0, 0, 2, 0))
@@ -161,7 +171,8 @@ panel_f <- ggplot() +
 # (4080 x 4411 px), LZW-compressed TIFF, a/b, c/d, e/f layout.
 figure <- (accuracy_panel("Drews") | accuracy_panel("Steele")) /
   (accuracy_panel("Tao") | panel_d) /
-  (panel_e + panel_f + plot_layout(widths = c(.5, .5))) +
+  # free(): the long data-type labels of panel e do not widen panels a and c.
+  (free(panel_e) + free(panel_f) + plot_layout(widths = c(.5, .5))) +
   plot_annotation(tag_levels = "a") &
   theme(plot.tag = element_text(face = "bold", size = 9))
 size <- c(width = 4080 / 600, height = 4411 / 600)
