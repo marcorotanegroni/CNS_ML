@@ -19,3 +19,8 @@ exp_meth_post_normalization.RData
 
 # Workstation run logs.
 /logs/
+
+# Renamed copies of versioned figures (code/revision/11_supplementary_files.R).
+/results/revision/supplement/*.png
+/results/revision/supplement/*.tiff
+/results/revision/supplement/*.pdf

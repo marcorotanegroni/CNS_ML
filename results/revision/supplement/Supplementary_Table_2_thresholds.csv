@@ -1,0 +1,233 @@
+"rule","rule_label","signature","framework","reference_cohort","reference_n","threshold","comparison","matched_n","active_n","active_prevalence"
+"original","Original full-cohort zero/median","Sig1","Tao","full_compendium",10370,0.0909090909090909,"x > 0 and x >= threshold",5881,2356,0.400612140792382
+"original","Original full-cohort zero/median","Sig2","Tao","full_compendium",10370,0.0763888888888889,"x > 0 and x >= threshold",5881,2228,0.378847134841013
+"original","Original full-cohort zero/median","Sig3","Tao","full_compendium",10370,0,"x > threshold",5881,3540,0.601938445842544
+"original","Original full-cohort zero/median","Sig4","Tao","full_compendium",10370,0.015748031496063,"x > 0 and x >= threshold",5881,3731,0.634415915660602
+"original","Original full-cohort zero/median","Sig5","Tao","full_compendium",10370,0.0328408110440035,"x > 0 and x >= threshold",5881,2842,0.483251147763986
+"original","Original full-cohort zero/median","Sig6","Tao","full_compendium",10370,0,"x > threshold",5881,3348,0.569290936915491
+"original","Original full-cohort zero/median","Sig7","Tao","full_compendium",10370,0.00742578807094936,"x > 0 and x >= threshold",5881,3669,0.623873490902908
+"original","Original full-cohort zero/median","Sig8","Tao","full_compendium",10370,0,"x > threshold",5881,3492,0.59377656861078
+"original","Original full-cohort zero/median","Sig9","Tao","full_compendium",10370,0,"x > threshold",5881,3314,0.563509607209658
+"original","Original full-cohort zero/median","Sig10","Tao","full_compendium",10370,0.015625,"x > 0 and x >= threshold",5881,3085,0.524570651249787
+"original","Original full-cohort zero/median","Sig11","Tao","full_compendium",10370,0.0222222222222222,"x > 0 and x >= threshold",5881,3165,0.538173779969393
+"original","Original full-cohort zero/median","Sig12","Tao","full_compendium",10370,0,"x > threshold",5881,3190,0.54242475769427
+"original","Original full-cohort zero/median","Sig13","Tao","full_compendium",10370,0.0101437096995473,"x > 0 and x >= threshold",5881,3324,0.565209998299609
+"original","Original full-cohort zero/median","Sig14","Tao","full_compendium",10370,0.00411522633744856,"x > 0 and x >= threshold",5881,3612,0.614181261690189
+"original","Original full-cohort zero/median","Sig15","Tao","full_compendium",10370,0.0126582278481013,"x > 0 and x >= threshold",5881,3507,0.596327155245707
+"original","Original full-cohort zero/median","Sig16","Tao","full_compendium",10370,0.0111234842860678,"x > 0 and x >= threshold",5881,3104,0.527801394320694
+"original","Original full-cohort zero/median","Sig17","Tao","full_compendium",10370,0.0214285714285714,"x > 0 and x >= threshold",5881,3613,0.614351300799184
+"original","Original full-cohort zero/median","Sig18","Tao","full_compendium",10370,0.0169491525423729,"x > 0 and x >= threshold",5881,2436,0.414215269511988
+"original","Original full-cohort zero/median","Sig19","Tao","full_compendium",10370,0.00377363864205969,"x > 0 and x >= threshold",5881,3360,0.571331406223431
+"original","Original full-cohort zero/median","Sig20","Tao","full_compendium",10370,0.00847457627118644,"x > 0 and x >= threshold",5881,3254,0.553307260669954
+"original","Original full-cohort zero/median","CX1","Drews","full_compendium",6335,0.554415616547806,"x > 0 and x >= threshold",5881,2923,0.497024315592586
+"original","Original full-cohort zero/median","CX2","Drews","full_compendium",6335,0.062181251207588,"x > 0 and x >= threshold",5881,2958,0.502975684407414
+"original","Original full-cohort zero/median","CX3","Drews","full_compendium",6335,0.160517508900651,"x > 0 and x >= threshold",5881,2968,0.504676075497364
+"original","Original full-cohort zero/median","CX4","Drews","full_compendium",6335,0.0263811487161643,"x > 0 and x >= threshold",5881,2972,0.505356231933345
+"original","Original full-cohort zero/median","CX5","Drews","full_compendium",6335,0.0310429603218354,"x > 0 and x >= threshold",5881,2937,0.499404863118517
+"original","Original full-cohort zero/median","CX6","Drews","full_compendium",6335,0.00671774026782837,"x > 0 and x >= threshold",5881,2948,0.501275293317463
+"original","Original full-cohort zero/median","CX7","Drews","full_compendium",6335,0.00589456196660469,"x > 0 and x >= threshold",5881,2913,0.495323924502636
+"original","Original full-cohort zero/median","CX8","Drews","full_compendium",6335,0,"x > threshold",5881,2737,0.465397041319503
+"original","Original full-cohort zero/median","CX9","Drews","full_compendium",6335,0,"x > threshold",5881,2389,0.40622343138922
+"original","Original full-cohort zero/median","CX10","Drews","full_compendium",6335,0,"x > threshold",5881,2115,0.359632715524571
+"original","Original full-cohort zero/median","CX11","Drews","full_compendium",6335,0,"x > threshold",5881,2004,0.340758374426118
+"original","Original full-cohort zero/median","CX12","Drews","full_compendium",6335,0,"x > threshold",5881,1908,0.324434619962591
+"original","Original full-cohort zero/median","CX13","Drews","full_compendium",6335,0,"x > threshold",5881,1935,0.329025675905458
+"original","Original full-cohort zero/median","CX14","Drews","full_compendium",6335,0,"x > threshold",5881,1901,0.323244346199626
+"original","Original full-cohort zero/median","CX15","Drews","full_compendium",6335,0,"x > threshold",5881,1776,0.301989457575242
+"original","Original full-cohort zero/median","CX16","Drews","full_compendium",6335,0,"x > threshold",5881,1242,0.211188573371876
+"original","Original full-cohort zero/median","CX17","Drews","full_compendium",6335,0,"x > threshold",5881,1143,0.194354701581364
+"original","Original full-cohort zero/median","CN1","Steele","full_compendium",9699,0.181818181818182,"x > 0 and x >= threshold",5881,2455,0.417446012582894
+"original","Original full-cohort zero/median","CN2","Steele","full_compendium",9699,0,"x > threshold",5881,2869,0.487842203706853
+"original","Original full-cohort zero/median","CN3","Steele","full_compendium",9699,0,"x > threshold",5881,113,0.0192144193164428
+"original","Original full-cohort zero/median","CN4","Steele","full_compendium",9699,0,"x > threshold",5881,12,0.00204046930794083
+"original","Original full-cohort zero/median","CN5","Steele","full_compendium",9699,0,"x > threshold",5881,185,0.0314572351640877
+"original","Original full-cohort zero/median","CN6","Steele","full_compendium",9699,0,"x > threshold",5881,1034,0.175820438700901
+"original","Original full-cohort zero/median","CN7","Steele","full_compendium",9699,0,"x > threshold",5881,314,0.0533922802244516
+"original","Original full-cohort zero/median","CN8","Steele","full_compendium",9699,0,"x > threshold",5881,585,0.0994728787621153
+"original","Original full-cohort zero/median","CN9","Steele","full_compendium",9699,0,"x > threshold",5881,2369,0.402822649209318
+"original","Original full-cohort zero/median","CN10","Steele","full_compendium",9699,0,"x > threshold",5881,40,0.00680156435980275
+"original","Original full-cohort zero/median","CN11","Steele","full_compendium",9699,0,"x > threshold",5881,402,0.0683557218160177
+"original","Original full-cohort zero/median","CN12","Steele","full_compendium",9699,0,"x > threshold",5881,137,0.0232953579323244
+"original","Original full-cohort zero/median","CN13","Steele","full_compendium",9699,0,"x > threshold",5881,80,0.0136031287196055
+"original","Original full-cohort zero/median","CN14","Steele","full_compendium",9699,0,"x > threshold",5881,119,0.0202346539704132
+"original","Original full-cohort zero/median","CN15","Steele","full_compendium",9699,0,"x > threshold",5881,11,0.00187043019894576
+"original","Original full-cohort zero/median","CN16","Steele","full_compendium",9699,0,"x > threshold",5881,83,0.0141132460465907
+"original","Original full-cohort zero/median","CN17","Steele","full_compendium",9699,0,"x > threshold",5881,1990,0.338377826900187
+"original","Original full-cohort zero/median","CN18","Steele","full_compendium",9699,0,"x > threshold",5881,127,0.0215949668423737
+"original","Original full-cohort zero/median","CN19","Steele","full_compendium",9699,0,"x > threshold",5881,118,0.0200646148614181
+"original","Original full-cohort zero/median","CN20","Steele","full_compendium",9699,0,"x > threshold",5881,176,0.0299268831831321
+"original","Original full-cohort zero/median","CN21","Steele","full_compendium",9699,0,"x > threshold",5881,80,0.0136031287196055
+"positive_q25","Positive-exposure 25th percentile","Sig1","Tao","full_compendium",10370,0.0687830687830688,"x > 0 and x >= threshold",5881,2556,0.434619962591396
+"positive_q25","Positive-exposure 25th percentile","Sig2","Tao","full_compendium",10370,0.0437414617486339,"x > 0 and x >= threshold",5881,2810,0.477809896276144
+"positive_q25","Positive-exposure 25th percentile","Sig3","Tao","full_compendium",10370,0.0294117647058824,"x > 0 and x >= threshold",5881,2730,0.464206767556538
+"positive_q25","Positive-exposure 25th percentile","Sig4","Tao","full_compendium",10370,0.025,"x > 0 and x >= threshold",5881,3359,0.571161367114436
+"positive_q25","Positive-exposure 25th percentile","Sig5","Tao","full_compendium",10370,0.0256410256410256,"x > 0 and x >= threshold",5881,3127,0.53171229382758
+"positive_q25","Positive-exposure 25th percentile","Sig6","Tao","full_compendium",10370,0.0227272727272727,"x > 0 and x >= threshold",5881,2521,0.428668593776569
+"positive_q25","Positive-exposure 25th percentile","Sig7","Tao","full_compendium",10370,0.0217391304347826,"x > 0 and x >= threshold",5881,3018,0.513178030947118
+"positive_q25","Positive-exposure 25th percentile","Sig8","Tao","full_compendium",10370,0.0240963855421687,"x > 0 and x >= threshold",5881,2591,0.440571331406223
+"positive_q25","Positive-exposure 25th percentile","Sig9","Tao","full_compendium",10370,0.019774011299435,"x > 0 and x >= threshold",5881,2408,0.409454174460126
+"positive_q25","Positive-exposure 25th percentile","Sig10","Tao","full_compendium",10370,0.0204081632653061,"x > 0 and x >= threshold",5881,2893,0.491923142322734
+"positive_q25","Positive-exposure 25th percentile","Sig11","Tao","full_compendium",10370,0.0175438596491228,"x > 0 and x >= threshold",5881,3472,0.590375786430879
+"positive_q25","Positive-exposure 25th percentile","Sig12","Tao","full_compendium",10370,0.0153061224489796,"x > 0 and x >= threshold",5881,2474,0.4206767556538
+"positive_q25","Positive-exposure 25th percentile","Sig13","Tao","full_compendium",10370,0.0205620384463611,"x > 0 and x >= threshold",5881,2908,0.49447372895766
+"positive_q25","Positive-exposure 25th percentile","Sig14","Tao","full_compendium",10370,0.0194174757281553,"x > 0 and x >= threshold",5881,2789,0.474239074987247
+"positive_q25","Positive-exposure 25th percentile","Sig15","Tao","full_compendium",10370,0.0206185567010309,"x > 0 and x >= threshold",5881,3097,0.526611120557728
+"positive_q25","Positive-exposure 25th percentile","Sig16","Tao","full_compendium",10370,0.0229885057471264,"x > 0 and x >= threshold",5881,2572,0.437340588335317
+"positive_q25","Positive-exposure 25th percentile","Sig17","Tao","full_compendium",10370,0.02,"x > 0 and x >= threshold",5881,3709,0.63067505526271
+"positive_q25","Positive-exposure 25th percentile","Sig18","Tao","full_compendium",10370,0.0165745856353591,"x > 0 and x >= threshold",5881,2464,0.41897636456385
+"positive_q25","Positive-exposure 25th percentile","Sig19","Tao","full_compendium",10370,0.0181818181818182,"x > 0 and x >= threshold",5881,2577,0.438190783880292
+"positive_q25","Positive-exposure 25th percentile","Sig20","Tao","full_compendium",10370,0.0178571428571429,"x > 0 and x >= threshold",5881,2639,0.448733208637987
+"positive_q25","Positive-exposure 25th percentile","CX1","Drews","full_compendium",6335,0.324691321542437,"x > 0 and x >= threshold",5881,4355,0.740520319673525
+"positive_q25","Positive-exposure 25th percentile","CX2","Drews","full_compendium",6335,0.0408649830320872,"x > 0 and x >= threshold",5881,3769,0.640877401802415
+"positive_q25","Positive-exposure 25th percentile","CX3","Drews","full_compendium",6335,0.117360064539748,"x > 0 and x >= threshold",5881,3437,0.584424417616052
+"positive_q25","Positive-exposure 25th percentile","CX4","Drews","full_compendium",6335,0.021021200924914,"x > 0 and x >= threshold",5881,3231,0.549396361163068
+"positive_q25","Positive-exposure 25th percentile","CX5","Drews","full_compendium",6335,0.0275411174054448,"x > 0 and x >= threshold",5881,3045,0.517769086889985
+"positive_q25","Positive-exposure 25th percentile","CX6","Drews","full_compendium",6335,0.00761716857519688,"x > 0 and x >= threshold",5881,2826,0.480530522020065
+"positive_q25","Positive-exposure 25th percentile","CX7","Drews","full_compendium",6335,0.00726719593210962,"x > 0 and x >= threshold",5881,2694,0.458085359632716
+"positive_q25","Positive-exposure 25th percentile","CX8","Drews","full_compendium",6335,0.00543245246037404,"x > 0 and x >= threshold",5881,2058,0.349940486311852
+"positive_q25","Positive-exposure 25th percentile","CX9","Drews","full_compendium",6335,0.0114994597224001,"x > 0 and x >= threshold",5881,1797,0.305560278864139
+"positive_q25","Positive-exposure 25th percentile","CX10","Drews","full_compendium",6335,0.0143952350021935,"x > 0 and x >= threshold",5881,1588,0.270022105084169
+"positive_q25","Positive-exposure 25th percentile","CX11","Drews","full_compendium",6335,0.01006767717973,"x > 0 and x >= threshold",5881,1501,0.255228702601598
+"positive_q25","Positive-exposure 25th percentile","CX12","Drews","full_compendium",6335,0.0023759101265354,"x > 0 and x >= threshold",5881,1427,0.242645808535963
+"positive_q25","Positive-exposure 25th percentile","CX13","Drews","full_compendium",6335,0.00225750081690549,"x > 0 and x >= threshold",5881,1450,0.24655670804285
+"positive_q25","Positive-exposure 25th percentile","CX14","Drews","full_compendium",6335,0.00772028639617961,"x > 0 and x >= threshold",5881,1426,0.242475769426968
+"positive_q25","Positive-exposure 25th percentile","CX15","Drews","full_compendium",6335,0.0281703336692885,"x > 0 and x >= threshold",5881,1337,0.227342288726407
+"positive_q25","Positive-exposure 25th percentile","CX16","Drews","full_compendium",6335,0.00699387407726502,"x > 0 and x >= threshold",5881,918,0.156095902057473
+"positive_q25","Positive-exposure 25th percentile","CX17","Drews","full_compendium",6335,0.027090081096258,"x > 0 and x >= threshold",5881,854,0.145213399081789
+"positive_q25","Positive-exposure 25th percentile","CN1","Steele","full_compendium",9699,0.307692307692308,"x > 0 and x >= threshold",5881,1836,0.312191804114946
+"positive_q25","Positive-exposure 25th percentile","CN2","Steele","full_compendium",9699,0.257425742574257,"x > 0 and x >= threshold",5881,2082,0.354021424927733
+"positive_q25","Positive-exposure 25th percentile","CN3","Steele","full_compendium",9699,0.302637043189369,"x > 0 and x >= threshold",5881,80,0.0136031287196055
+"positive_q25","Positive-exposure 25th percentile","CN4","Steele","full_compendium",9699,0.235729085729086,"x > 0 and x >= threshold",5881,10,0.00170039108995069
+"positive_q25","Positive-exposure 25th percentile","CN5","Steele","full_compendium",9699,0.213408239700374,"x > 0 and x >= threshold",5881,130,0.022105084169359
+"positive_q25","Positive-exposure 25th percentile","CN6","Steele","full_compendium",9699,0.221501457725947,"x > 0 and x >= threshold",5881,778,0.132290426798164
+"positive_q25","Positive-exposure 25th percentile","CN7","Steele","full_compendium",9699,0.253650227125243,"x > 0 and x >= threshold",5881,234,0.0397891515048461
+"positive_q25","Positive-exposure 25th percentile","CN8","Steele","full_compendium",9699,0.219756097560975,"x > 0 and x >= threshold",5881,429,0.0729467777588845
+"positive_q25","Positive-exposure 25th percentile","CN9","Steele","full_compendium",9699,0.30952380952381,"x > 0 and x >= threshold",5881,1825,0.310321373916001
+"positive_q25","Positive-exposure 25th percentile","CN10","Steele","full_compendium",9699,0.335817307692307,"x > 0 and x >= threshold",5881,30,0.00510117326985207
+"positive_q25","Positive-exposure 25th percentile","CN11","Steele","full_compendium",9699,0.29356452726018,"x > 0 and x >= threshold",5881,302,0.0513518109165108
+"positive_q25","Positive-exposure 25th percentile","CN12","Steele","full_compendium",9699,0.25,"x > 0 and x >= threshold",5881,105,0.0178541064444822
+"positive_q25","Positive-exposure 25th percentile","CN13","Steele","full_compendium",9699,0.476190476190476,"x > 0 and x >= threshold",5881,63,0.0107124638666893
+"positive_q25","Positive-exposure 25th percentile","CN14","Steele","full_compendium",9699,0.192076923076923,"x > 0 and x >= threshold",5881,91,0.0154735589185513
+"positive_q25","Positive-exposure 25th percentile","CN15","Steele","full_compendium",9699,0.25685443668993,"x > 0 and x >= threshold",5881,11,0.00187043019894576
+"positive_q25","Positive-exposure 25th percentile","CN16","Steele","full_compendium",9699,0.315717415115006,"x > 0 and x >= threshold",5881,67,0.0113926203026696
+"positive_q25","Positive-exposure 25th percentile","CN17","Steele","full_compendium",9699,0.291044776119403,"x > 0 and x >= threshold",5881,1481,0.251827920421697
+"positive_q25","Positive-exposure 25th percentile","CN18","Steele","full_compendium",9699,0.328797564687975,"x > 0 and x >= threshold",5881,86,0.0146233633735759
+"positive_q25","Positive-exposure 25th percentile","CN19","Steele","full_compendium",9699,0.304920238324044,"x > 0 and x >= threshold",5881,89,0.0151334807005611
+"positive_q25","Positive-exposure 25th percentile","CN20","Steele","full_compendium",9699,0.232323232323232,"x > 0 and x >= threshold",5881,140,0.0238054752593096
+"positive_q25","Positive-exposure 25th percentile","CN21","Steele","full_compendium",9699,0.286837788285246,"x > 0 and x >= threshold",5881,62,0.0105424247576943
+"positive_q50","Positive-exposure median","Sig1","Tao","full_compendium",10370,0.157534246575342,"x > 0 and x >= threshold",5881,1486,0.252678115966672
+"positive_q50","Positive-exposure median","Sig2","Tao","full_compendium",10370,0.127095233636108,"x > 0 and x >= threshold",5881,1488,0.253018194184662
+"positive_q50","Positive-exposure median","Sig3","Tao","full_compendium",10370,0.0725388601036269,"x > 0 and x >= threshold",5881,1865,0.317122938275803
+"positive_q50","Positive-exposure median","Sig4","Tao","full_compendium",10370,0.0551724137931034,"x > 0 and x >= threshold",5881,2397,0.40758374426118
+"positive_q50","Positive-exposure median","Sig5","Tao","full_compendium",10370,0.075187969924812,"x > 0 and x >= threshold",5881,1734,0.294847814997449
+"positive_q50","Positive-exposure median","Sig6","Tao","full_compendium",10370,0.0526315789473684,"x > 0 and x >= threshold",5881,1702,0.289406563509607
+"positive_q50","Positive-exposure median","Sig7","Tao","full_compendium",10370,0.0570145195925846,"x > 0 and x >= threshold",5881,2086,0.354701581363714
+"positive_q50","Positive-exposure median","Sig8","Tao","full_compendium",10370,0.0597014925373134,"x > 0 and x >= threshold",5881,1661,0.282434960040809
+"positive_q50","Positive-exposure median","Sig9","Tao","full_compendium",10370,0.0506329113924051,"x > 0 and x >= threshold",5881,1509,0.256589015473559
+"positive_q50","Positive-exposure median","Sig10","Tao","full_compendium",10370,0.0462491405872018,"x > 0 and x >= threshold",5881,2021,0.343649039279034
+"positive_q50","Positive-exposure median","Sig11","Tao","full_compendium",10370,0.0353982300884956,"x > 0 and x >= threshold",5881,2437,0.414385308620983
+"positive_q50","Positive-exposure median","Sig12","Tao","full_compendium",10370,0.0373134328358209,"x > 0 and x >= threshold",5881,1708,0.290426798163578
+"positive_q50","Positive-exposure median","Sig13","Tao","full_compendium",10370,0.0545454545454545,"x > 0 and x >= threshold",5881,2067,0.351470838292807
+"positive_q50","Positive-exposure median","Sig14","Tao","full_compendium",10370,0.0440251572327044,"x > 0 and x >= threshold",5881,1940,0.329875871450434
+"positive_q50","Positive-exposure median","Sig15","Tao","full_compendium",10370,0.0422238069768824,"x > 0 and x >= threshold",5881,2136,0.363203536813467
+"positive_q50","Positive-exposure median","Sig16","Tao","full_compendium",10370,0.051948051948052,"x > 0 and x >= threshold",5881,1656,0.281584764495834
+"positive_q50","Positive-exposure median","Sig17","Tao","full_compendium",10370,0.0402010050251256,"x > 0 and x >= threshold",5881,2546,0.432919571501445
+"positive_q50","Positive-exposure median","Sig18","Tao","full_compendium",10370,0.0416666666666667,"x > 0 and x >= threshold",5881,1335,0.227002210508417
+"positive_q50","Positive-exposure median","Sig19","Tao","full_compendium",10370,0.036036036036036,"x > 0 and x >= threshold",5881,1724,0.293147423907499
+"positive_q50","Positive-exposure median","Sig20","Tao","full_compendium",10370,0.0373134328358209,"x > 0 and x >= threshold",5881,1701,0.289236524400612
+"positive_q50","Positive-exposure median","CX1","Drews","full_compendium",6335,0.557700719651965,"x > 0 and x >= threshold",5881,2889,0.491242985886754
+"positive_q50","Positive-exposure median","CX2","Drews","full_compendium",6335,0.0743275885148588,"x > 0 and x >= threshold",5881,2543,0.43240945417446
+"positive_q50","Positive-exposure median","CX3","Drews","full_compendium",6335,0.215795126466081,"x > 0 and x >= threshold",5881,2325,0.395340928413535
+"positive_q50","Positive-exposure median","CX4","Drews","full_compendium",6335,0.0457216725252075,"x > 0 and x >= threshold",5881,2159,0.367114436320354
+"positive_q50","Positive-exposure median","CX5","Drews","full_compendium",6335,0.0654225064235794,"x > 0 and x >= threshold",5881,2025,0.344329195715014
+"positive_q50","Positive-exposure median","CX6","Drews","full_compendium",6335,0.0165421342453687,"x > 0 and x >= threshold",5881,1880,0.31967352491073
+"positive_q50","Positive-exposure median","CX7","Drews","full_compendium",6335,0.0147908861190091,"x > 0 and x >= threshold",5881,1781,0.302839653120218
+"positive_q50","Positive-exposure median","CX8","Drews","full_compendium",6335,0.0124365240235711,"x > 0 and x >= threshold",5881,1376,0.233973813977215
+"positive_q50","Positive-exposure median","CX9","Drews","full_compendium",6335,0.0220392123810191,"x > 0 and x >= threshold",5881,1207,0.205237204557048
+"positive_q50","Positive-exposure median","CX10","Drews","full_compendium",6335,0.0276935133494233,"x > 0 and x >= threshold",5881,1067,0.181431729297738
+"positive_q50","Positive-exposure median","CX11","Drews","full_compendium",6335,0.0176260154203368,"x > 0 and x >= threshold",5881,1002,0.170379187213059
+"positive_q50","Positive-exposure median","CX12","Drews","full_compendium",6335,0.00417719776472944,"x > 0 and x >= threshold",5881,950,0.161537153545315
+"positive_q50","Positive-exposure median","CX13","Drews","full_compendium",6335,0.00520494318132736,"x > 0 and x >= threshold",5881,967,0.164427818398232
+"positive_q50","Positive-exposure median","CX14","Drews","full_compendium",6335,0.0167788433908553,"x > 0 and x >= threshold",5881,952,0.161877231763306
+"positive_q50","Positive-exposure median","CX15","Drews","full_compendium",6335,0.0479007965319759,"x > 0 and x >= threshold",5881,890,0.151334807005611
+"positive_q50","Positive-exposure median","CX16","Drews","full_compendium",6335,0.0131172124600418,"x > 0 and x >= threshold",5881,600,0.102023465397041
+"positive_q50","Positive-exposure median","CX17","Drews","full_compendium",6335,0.0459901117520784,"x > 0 and x >= threshold",5881,568,0.0965822139091991
+"positive_q50","Positive-exposure median","CN1","Steele","full_compendium",9699,0.576923076923077,"x > 0 and x >= threshold",5881,765,0.130079918381228
+"positive_q50","Positive-exposure median","CN2","Steele","full_compendium",9699,0.423728813559322,"x > 0 and x >= threshold",5881,1368,0.232613501105254
+"positive_q50","Positive-exposure median","CN3","Steele","full_compendium",9699,0.359724523612262,"x > 0 and x >= threshold",5881,53,0.00901207277673865
+"positive_q50","Positive-exposure median","CN4","Steele","full_compendium",9699,0.312974761087969,"x > 0 and x >= threshold",5881,7,0.00119027376296548
+"positive_q50","Positive-exposure median","CN5","Steele","full_compendium",9699,0.268817204301075,"x > 0 and x >= threshold",5881,84,0.0142832851555858
+"positive_q50","Positive-exposure median","CN6","Steele","full_compendium",9699,0.270833333333333,"x > 0 and x >= threshold",5881,523,0.088930454004421
+"positive_q50","Positive-exposure median","CN7","Steele","full_compendium",9699,0.30930735930736,"x > 0 and x >= threshold",5881,158,0.0268661792212209
+"positive_q50","Positive-exposure median","CN8","Steele","full_compendium",9699,0.267716535433071,"x > 0 and x >= threshold",5881,284,0.0482911069545996
+"positive_q50","Positive-exposure median","CN9","Steele","full_compendium",9699,0.424828767123287,"x > 0 and x >= threshold",5881,1255,0.213399081788811
+"positive_q50","Positive-exposure median","CN10","Steele","full_compendium",9699,0.39344262295082,"x > 0 and x >= threshold",5881,21,0.00357082128889645
+"positive_q50","Positive-exposure median","CN11","Steele","full_compendium",9699,0.373563218390805,"x > 0 and x >= threshold",5881,190,0.0323074307090631
+"positive_q50","Positive-exposure median","CN12","Steele","full_compendium",9699,0.307692307692308,"x > 0 and x >= threshold",5881,71,0.0120727767386499
+"positive_q50","Positive-exposure median","CN13","Steele","full_compendium",9699,0.6,"x > 0 and x >= threshold",5881,45,0.0076517599047781
+"positive_q50","Positive-exposure median","CN14","Steele","full_compendium",9699,0.299253731343283,"x > 0 and x >= threshold",5881,63,0.0107124638666893
+"positive_q50","Positive-exposure median","CN15","Steele","full_compendium",9699,0.357874519846351,"x > 0 and x >= threshold",5881,8,0.00136031287196055
+"positive_q50","Positive-exposure median","CN16","Steele","full_compendium",9699,0.454545454545455,"x > 0 and x >= threshold",5881,44,0.00748172079578303
+"positive_q50","Positive-exposure median","CN17","Steele","full_compendium",9699,0.379310344827586,"x > 0 and x >= threshold",5881,995,0.169188913450094
+"positive_q50","Positive-exposure median","CN18","Steele","full_compendium",9699,0.47968215319821,"x > 0 and x >= threshold",5881,57,0.00969222921271893
+"positive_q50","Positive-exposure median","CN19","Steele","full_compendium",9699,0.365045248868778,"x > 0 and x >= threshold",5881,60,0.0102023465397041
+"positive_q50","Positive-exposure median","CN20","Steele","full_compendium",9699,0.314611154752554,"x > 0 and x >= threshold",5881,93,0.0158136371365414
+"positive_q50","Positive-exposure median","CN21","Steele","full_compendium",9699,0.507692307692308,"x > 0 and x >= threshold",5881,46,0.00782179901377317
+"positive_q75","Positive-exposure 75th percentile","Sig1","Tao","full_compendium",10370,0.248366013071895,"x > 0 and x >= threshold",5881,574,0.0976024485631695
+"positive_q75","Positive-exposure 75th percentile","Sig2","Tao","full_compendium",10370,0.245901639344262,"x > 0 and x >= threshold",5881,421,0.071586464886924
+"positive_q75","Positive-exposure 75th percentile","Sig3","Tao","full_compendium",10370,0.142857142857143,"x > 0 and x >= threshold",5881,966,0.164257779289237
+"positive_q75","Positive-exposure 75th percentile","Sig4","Tao","full_compendium",10370,0.101694915254237,"x > 0 and x >= threshold",5881,1299,0.220880802584594
+"positive_q75","Positive-exposure 75th percentile","Sig5","Tao","full_compendium",10370,0.173913043478261,"x > 0 and x >= threshold",5881,554,0.0942016663832682
+"positive_q75","Positive-exposure 75th percentile","Sig6","Tao","full_compendium",10370,0.116981132075472,"x > 0 and x >= threshold",5881,853,0.145043359972794
+"positive_q75","Positive-exposure 75th percentile","Sig7","Tao","full_compendium",10370,0.123414510400812,"x > 0 and x >= threshold",5881,1083,0.18415235504166
+"positive_q75","Positive-exposure 75th percentile","Sig8","Tao","full_compendium",10370,0.123362320498884,"x > 0 and x >= threshold",5881,758,0.128889644618262
+"positive_q75","Positive-exposure 75th percentile","Sig9","Tao","full_compendium",10370,0.129675810473815,"x > 0 and x >= threshold",5881,706,0.120047610950519
+"positive_q75","Positive-exposure 75th percentile","Sig10","Tao","full_compendium",10370,0.09375,"x > 0 and x >= threshold",5881,1113,0.189253528311512
+"positive_q75","Positive-exposure 75th percentile","Sig11","Tao","full_compendium",10370,0.0634328358208955,"x > 0 and x >= threshold",5881,1304,0.22173099812957
+"positive_q75","Positive-exposure 75th percentile","Sig12","Tao","full_compendium",10370,0.0818965517241379,"x > 0 and x >= threshold",5881,834,0.141812616901887
+"positive_q75","Positive-exposure 75th percentile","Sig13","Tao","full_compendium",10370,0.109432025547445,"x > 0 and x >= threshold",5881,1093,0.18585274613161
+"positive_q75","Positive-exposure 75th percentile","Sig14","Tao","full_compendium",10370,0.0847457627118644,"x > 0 and x >= threshold",5881,1002,0.170379187213059
+"positive_q75","Positive-exposure 75th percentile","Sig15","Tao","full_compendium",10370,0.0780319982098903,"x > 0 and x >= threshold",5881,1082,0.183982315932665
+"positive_q75","Positive-exposure 75th percentile","Sig16","Tao","full_compendium",10370,0.0984848484848485,"x > 0 and x >= threshold",5881,802,0.136371365414045
+"positive_q75","Positive-exposure 75th percentile","Sig17","Tao","full_compendium",10370,0.0694444444444444,"x > 0 and x >= threshold",5881,1327,0.225641897636456
+"positive_q75","Positive-exposure 75th percentile","Sig18","Tao","full_compendium",10370,0.0900900900900901,"x > 0 and x >= threshold",5881,508,0.086379867369495
+"positive_q75","Positive-exposure 75th percentile","Sig19","Tao","full_compendium",10370,0.0663053895591386,"x > 0 and x >= threshold",5881,862,0.146573711953749
+"positive_q75","Positive-exposure 75th percentile","Sig20","Tao","full_compendium",10370,0.0718954248366013,"x > 0 and x >= threshold",5881,813,0.138241795612991
+"positive_q75","Positive-exposure 75th percentile","CX1","Drews","full_compendium",6335,0.746998599577279,"x > 0 and x >= threshold",5881,1472,0.250297568440741
+"positive_q75","Positive-exposure 75th percentile","CX2","Drews","full_compendium",6335,0.118660370061945,"x > 0 and x >= threshold",5881,1284,0.218330215949668
+"positive_q75","Positive-exposure 75th percentile","CX3","Drews","full_compendium",6335,0.330599751452205,"x > 0 and x >= threshold",5881,1166,0.19826560108825
+"positive_q75","Positive-exposure 75th percentile","CX4","Drews","full_compendium",6335,0.0753382743118718,"x > 0 and x >= threshold",5881,1078,0.183302159496684
+"positive_q75","Positive-exposure 75th percentile","CX5","Drews","full_compendium",6335,0.128023866213797,"x > 0 and x >= threshold",5881,1016,0.17275973473899
+"positive_q75","Positive-exposure 75th percentile","CX6","Drews","full_compendium",6335,0.02939929862445,"x > 0 and x >= threshold",5881,944,0.160516918891345
+"positive_q75","Positive-exposure 75th percentile","CX7","Drews","full_compendium",6335,0.0280801539427301,"x > 0 and x >= threshold",5881,880,0.149634415915661
+"positive_q75","Positive-exposure 75th percentile","CX8","Drews","full_compendium",6335,0.0247510783713801,"x > 0 and x >= threshold",5881,683,0.116136711443632
+"positive_q75","Positive-exposure 75th percentile","CX9","Drews","full_compendium",6335,0.0413394362902969,"x > 0 and x >= threshold",5881,599,0.101853426288046
+"positive_q75","Positive-exposure 75th percentile","CX10","Drews","full_compendium",6335,0.0524525007065751,"x > 0 and x >= threshold",5881,531,0.0902907668763816
+"positive_q75","Positive-exposure 75th percentile","CX11","Drews","full_compendium",6335,0.0324641319369966,"x > 0 and x >= threshold",5881,499,0.0848495153885394
+"positive_q75","Positive-exposure 75th percentile","CX12","Drews","full_compendium",6335,0.00707403108312392,"x > 0 and x >= threshold",5881,461,0.0783880292467267
+"positive_q75","Positive-exposure 75th percentile","CX13","Drews","full_compendium",6335,0.0116126041477593,"x > 0 and x >= threshold",5881,476,0.0809386158816528
+"positive_q75","Positive-exposure 75th percentile","CX14","Drews","full_compendium",6335,0.0324121484001524,"x > 0 and x >= threshold",5881,474,0.0805985376636626
+"positive_q75","Positive-exposure 75th percentile","CX15","Drews","full_compendium",6335,0.0754046346256528,"x > 0 and x >= threshold",5881,442,0.0751572861758204
+"positive_q75","Positive-exposure 75th percentile","CX16","Drews","full_compendium",6335,0.0222605756746608,"x > 0 and x >= threshold",5881,287,0.0488012242815848
+"positive_q75","Positive-exposure 75th percentile","CX17","Drews","full_compendium",6335,0.0781085279366548,"x > 0 and x >= threshold",5881,283,0.0481210678456045
+"positive_q75","Positive-exposure 75th percentile","CN1","Steele","full_compendium",9699,1,"x > 0 and x >= threshold",5881,319,0.054242475769427
+"positive_q75","Positive-exposure 75th percentile","CN2","Steele","full_compendium",9699,0.72,"x > 0 and x >= threshold",5881,675,0.114776398571671
+"positive_q75","Positive-exposure 75th percentile","CN3","Steele","full_compendium",9699,0.478140096618357,"x > 0 and x >= threshold",5881,24,0.00408093861588165
+"positive_q75","Positive-exposure 75th percentile","CN4","Steele","full_compendium",9699,0.555577324973877,"x > 0 and x >= threshold",5881,3,0.000510117326985207
+"positive_q75","Positive-exposure 75th percentile","CN5","Steele","full_compendium",9699,0.353163493840985,"x > 0 and x >= threshold",5881,35,0.00595136881482741
+"positive_q75","Positive-exposure 75th percentile","CN6","Steele","full_compendium",9699,0.340700040700041,"x > 0 and x >= threshold",5881,265,0.0450603638836932
+"positive_q75","Positive-exposure 75th percentile","CN7","Steele","full_compendium",9699,0.410861454504956,"x > 0 and x >= threshold",5881,77,0.0130930113926203
+"positive_q75","Positive-exposure 75th percentile","CN8","Steele","full_compendium",9699,0.333333333333333,"x > 0 and x >= threshold",5881,129,0.0219350450603639
+"positive_q75","Positive-exposure 75th percentile","CN9","Steele","full_compendium",9699,0.547169811320755,"x > 0 and x >= threshold",5881,652,0.110865499064785
+"positive_q75","Positive-exposure 75th percentile","CN10","Steele","full_compendium",9699,0.476159134123153,"x > 0 and x >= threshold",5881,12,0.00204046930794083
+"positive_q75","Positive-exposure 75th percentile","CN11","Steele","full_compendium",9699,0.491916558018253,"x > 0 and x >= threshold",5881,95,0.0161537153545315
+"positive_q75","Positive-exposure 75th percentile","CN12","Steele","full_compendium",9699,0.371637122002085,"x > 0 and x >= threshold",5881,35,0.00595136881482741
+"positive_q75","Positive-exposure 75th percentile","CN13","Steele","full_compendium",9699,0.731707317073171,"x > 0 and x >= threshold",5881,24,0.00408093861588165
+"positive_q75","Positive-exposure 75th percentile","CN14","Steele","full_compendium",9699,0.473339160839161,"x > 0 and x >= threshold",5881,29,0.004931134160857
+"positive_q75","Positive-exposure 75th percentile","CN15","Steele","full_compendium",9699,0.619377811094453,"x > 0 and x >= threshold",5881,4,0.000680156435980275
+"positive_q75","Positive-exposure 75th percentile","CN16","Steele","full_compendium",9699,0.630075187969925,"x > 0 and x >= threshold",5881,24,0.00408093861588165
+"positive_q75","Positive-exposure 75th percentile","CN17","Steele","full_compendium",9699,0.52258064516129,"x > 0 and x >= threshold",5881,516,0.0877401802414555
+"positive_q75","Positive-exposure 75th percentile","CN18","Steele","full_compendium",9699,0.709943181818182,"x > 0 and x >= threshold",5881,21,0.00357082128889645
+"positive_q75","Positive-exposure 75th percentile","CN19","Steele","full_compendium",9699,0.455681818181818,"x > 0 and x >= threshold",5881,30,0.00510117326985207
+"positive_q75","Positive-exposure 75th percentile","CN20","Steele","full_compendium",9699,0.476961124609511,"x > 0 and x >= threshold",5881,46,0.00782179901377317
+"positive_q75","Positive-exposure 75th percentile","CN21","Steele","full_compendium",9699,0.793884220354809,"x > 0 and x >= threshold",5881,24,0.00408093861588165
