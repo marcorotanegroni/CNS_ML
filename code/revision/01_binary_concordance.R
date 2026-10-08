@@ -226,48 +226,34 @@ bc_verify_metrics <- function(original) {
   invisible(TRUE)
 }
 
-bc_plot_heatmaps <- function(pairs, signatures, order, rules,
-                             metrics = c(state_jaccard = "Patient-state Jaccard",
-                                         inactive_share_of_agreements = "Inactive-inactive share of agreements"),
-                             scale_name = "Value",
-                             caption = "Fixed signature ordering. White diagonal: omitted self-comparisons. Grey: share undefined because no patients agree.") {
+# One agreement matrix in the layout of Figure 4: signatures in the given
+# order on both axes (bottom to top), grey diagonal and grey undefined values.
+# The colour ramp keeps the blue family and tile outlines of Figure 4 but,
+# unlike its white plateau below .25, also distinguishes low values, which
+# matters for active-state Jaccard. All panels share the [0, 1] mapping.
+bc_matrix_panel <- function(pairs, order, metric, title, rule = "original", text_size = 6) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) stop("ggplot2 is required for plots.")
-  data <- pairs[pairs$rule %in% rules & pairs$signature1 %in% signatures &
-                  pairs$signature2 %in% signatures, ]
+  data <- pairs[pairs$rule == rule & pairs$signature1 %in% order & pairs$signature2 %in% order, ]
   reverse <- data
   reverse$signature1 <- data$signature2; reverse$signature2 <- data$signature1
-  data <- rbind(data, reverse)
-  long <- do.call(rbind, lapply(names(metrics), function(metric) {
-    data.frame(rule = data$rule, signature1 = data$signature1,
-               signature2 = data$signature2, metric = metrics[[metric]], value = data[[metric]])
-  }))
-  long$signature1 <- factor(long$signature1, levels = order)
-  long$signature2 <- factor(long$signature2, levels = rev(order))
-  long$metric <- factor(long$metric, levels = unname(metrics))
-  long$rule <- factor(long$rule, levels = rules, labels = unname(bc_rule_labels()[rules]))
-  p <- ggplot2::ggplot(long, ggplot2::aes(signature1, signature2, fill = value)) +
+  long <- rbind(data.frame(x = data$signature1, y = data$signature2, value = data[[metric]]),
+                data.frame(x = reverse$signature1, y = reverse$signature2, value = reverse[[metric]]),
+                data.frame(x = order, y = order, value = NA_real_))
+  long$x <- factor(long$x, levels = order); long$y <- factor(long$y, levels = order)
+  ggplot2::ggplot(long, ggplot2::aes(x, y, fill = value)) +
     ggplot2::geom_tile(color = "grey25", linewidth = .1) +
-    ggplot2::facet_grid(rule ~ metric, drop = FALSE) +
-    ggplot2::scale_x_discrete(drop = FALSE) + ggplot2::scale_y_discrete(drop = FALSE) +
-    # Use the blue family and tile outlines of Figure 4. Unlike its white
-    # plateau below .25, this ramp also distinguishes low active agreement.
-    # All panels keep the same mapping and fixed [0, 1] limits.
     ggplot2::scale_fill_gradientn(
       colors = c("white", "#deebf7", "lightblue", "#3182bd", "darkblue", "darkblue"),
       values = c(0, .1, .25, .5, .75, 1), limits = c(0, 1),
-      breaks = seq(0, 1, .25), na.value = "grey50", name = scale_name) +
-    ggplot2::coord_fixed() + ggplot2::theme_minimal(base_size = 10) +
+      breaks = seq(0, 1, .25), na.value = "grey50", name = "Value") +
+    ggplot2::coord_fixed(expand = FALSE) +
+    ggplot2::labs(x = NULL, y = NULL, title = title) +
+    ggplot2::theme_minimal(base_size = 7) +
     ggplot2::theme(panel.grid = ggplot2::element_blank(),
-      axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = .5,
-                                         size = if (length(signatures) > 12L) 5 else 8,
-                                         color = "black"),
-      axis.text.y = ggplot2::element_text(size = if (length(signatures) > 12L) 5 else 8,
-                                         color = "black"),
-      strip.text.y = ggplot2::element_text(angle = 0), legend.position = "bottom") +
-    ggplot2::labs(x = NULL, y = NULL,
-      title = paste0("Binary agreement: ", format(unique(data$n), big.mark = ","), " matched TCGA patients"),
-      caption = caption)
-  p
+      plot.title = ggplot2::element_text(size = 7, hjust = .5),
+      axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = .5, size = text_size,
+                                          colour = "black"),
+      axis.text.y = ggplot2::element_text(size = text_size, colour = "black"))
 }
 
 # Compact threshold-sensitivity summary: distribution of each metric over the
@@ -296,15 +282,18 @@ bc_plot_threshold_sensitivity <- function(pairs, ranks, rules,
     ggplot2::geom_jitter(width = .12, height = 0, size = .7, colour = "grey60") +
     ggplot2::geom_line(data = hits, ggplot2::aes(group = pair, colour = pair), linewidth = .6) +
     ggplot2::geom_point(data = hits, ggplot2::aes(colour = pair), size = 2) +
-    ggplot2::geom_text(data = hits, ggplot2::aes(label = rank, colour = pair),
-                       nudge_x = .22, size = 2.8, show.legend = FALSE) +
+    ggrepel::geom_text_repel(data = hits, ggplot2::aes(label = rank, colour = pair),
+                             nudge_x = .32, direction = "y", size = 2.3, min.segment.length = Inf,
+                             box.padding = .1, seed = 1, show.legend = FALSE) +
     ggplot2::facet_wrap(~ metric, nrow = 1, scales = "free_y") +
     ggplot2::scale_colour_manual(values = c("#08519c", "#6baed6", "#e6550d"), name = NULL) +
-    ggplot2::theme_bw(base_size = 10) +
-    ggplot2::theme(panel.grid.minor = ggplot2::element_blank(), legend.position = "bottom") +
-    ggplot2::labs(x = NULL, y = NULL,
-      caption = paste("Grey: the 48 cross-compendium pairs of the 12 selected signatures.",
-                      "Numbers: rank of each principal pair among the 48 (1 = strongest)."))
+    ggplot2::theme_bw(base_size = 8) +
+    ggplot2::theme(panel.grid.minor = ggplot2::element_blank(), legend.position = "bottom",
+                   axis.text = ggplot2::element_text(colour = "black"),
+                   legend.margin = ggplot2::margin(0, 0, 0, 0)) +
+    # Grey: the 48 cross-compendium pairs of the 12 selected signatures;
+    # numbers: rank of each principal pair among the 48 (1 = strongest).
+    ggplot2::labs(x = NULL, y = NULL)
 }
 
 run_binary_concordance <- function(
@@ -349,34 +338,43 @@ run_binary_concordance <- function(
   high <- bc_high_activity_signatures()
   high_order <- high[hclust(dist(t(analyses$original$binary[, high, drop = FALSE])), method = "complete")$order]
   if (make_plots) {
-    components <- c(state_jaccard = "Patient-state Jaccard (Figure 4)",
-                    inactive_share_of_agreements = "Inactive-inactive share of agreements",
-                    active_jaccard = "Active-state Jaccard")
-    component_caption <- paste(
-      "Patient-state Jaccard = (n11+n00)/(n11+n00+2(n10+n01)); inactive-inactive share = n00/(n11+n00);",
-      "active-state Jaccard = n11/(n11+n10+n01). Grey: undefined.")
-    all_components <- bc_plot_heatmaps(pairs, all_order, all_order, "original",
-      components, caption = NULL) +
-      ggplot2::labs(title = "a  All 58 signatures") +
-      ggplot2::theme(strip.text.y = ggplot2::element_blank(), legend.position = "none")
-    high_components <- bc_plot_heatmaps(pairs, high, high_order, "original",
-      components, caption = component_caption) +
-      ggplot2::labs(title = "b  12 signatures selected for clustering") +
-      ggplot2::theme(strip.text.y = ggplot2::element_blank())
-    grDevices::png(file.path(output_dir, "state_agreement_components.png"),
-                   width = 4800, height = 3600, res = 180, bg = "white")
-    tryCatch({
-      grid::grid.newpage()
-      grid::pushViewport(grid::viewport(layout = grid::grid.layout(2, 1)))
-      print(all_components, vp = grid::viewport(layout.pos.row = 1, layout.pos.col = 1))
-      print(high_components, vp = grid::viewport(layout.pos.row = 2, layout.pos.col = 1))
-    }, finally = grDevices::dev.off())
+    # Supplementary figure, page width (6.8 in) at 600 dpi. The patient-state
+    # Jaccard of all 58 signatures is Figure 4a; here its two components for
+    # the 58 signatures (a, b) and all three measures for the 12 selected
+    # signatures (c-e). Formulas are given in the caption.
+    library_ok <- requireNamespace("patchwork", quietly = TRUE)
+    if (!library_ok) stop("patchwork is required for the composite figure.")
+    panels <- list(
+      bc_matrix_panel(pairs, all_order, "inactive_share_of_agreements",
+                      "Inactive-inactive share of agreements", text_size = 3.6),
+      bc_matrix_panel(pairs, all_order, "active_jaccard", "Active-state Jaccard", text_size = 3.6),
+      bc_matrix_panel(pairs, high_order, "state_jaccard", "Patient-state Jaccard"),
+      bc_matrix_panel(pairs, high_order, "inactive_share_of_agreements", "Inactive-inactive share"),
+      bc_matrix_panel(pairs, high_order, "active_jaccard", "Active-state Jaccard"))
+    components <- (panels[[1]] | panels[[2]]) / (panels[[3]] | panels[[4]] | panels[[5]]) +
+      patchwork::plot_layout(heights = c(1.45, 1), guides = "collect") +
+      patchwork::plot_annotation(tag_levels = "a") &
+      ggplot2::theme(plot.tag = ggplot2::element_text(face = "bold", size = 9),
+                     legend.position = "bottom", legend.key.height = grid::unit(5, "pt"),
+                     legend.key.width = grid::unit(28, "pt"), legend.title.position = "top",
+                     legend.title = ggplot2::element_text(hjust = .5))
+    for (ext in c("png", "tiff", "pdf")) {
+      args <- list(filename = file.path(output_dir, paste0("state_agreement_components.", ext)),
+                   plot = components, width = 6.8, height = 6.7, units = "in", bg = "white")
+      if (ext != "pdf") args$dpi <- 600
+      if (ext == "tiff") args$compression <- "lzw"
+      do.call(ggplot2::ggsave, args)
+    }
     sensitivity <- bc_plot_threshold_sensitivity(pairs, principal_ranks, rules)
     old_heatmap <- file.path(output_dir, "threshold_sensitivity_high_activity.png")
     if (file.exists(old_heatmap)) file.remove(old_heatmap)
-    ggplot2::ggsave(file.path(output_dir, "threshold_sensitivity_principal_pairs.png"),
-                   sensitivity, width = 8, height = 4.5, units = "in", dpi = 200,
-                   bg = "white")
+    for (ext in c("png", "tiff", "pdf")) {
+      args <- list(filename = file.path(output_dir, paste0("threshold_sensitivity_principal_pairs.", ext)),
+                   plot = sensitivity, width = 6.8, height = 3.6, units = "in", bg = "white")
+      if (ext != "pdf") args$dpi <- 600
+      if (ext == "tiff") args$compression <- "lzw"
+      do.call(ggplot2::ggsave, args)
+    }
   }
   writeLines(c(paste0("Input: ", normalizePath(input_path)),
     paste0("Input MD5: ", unname(tools::md5sum(input_path))),

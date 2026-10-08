@@ -91,8 +91,8 @@ Rscript code/revision/01_binary_concordance.R
 The final section of code/01_signature_exploration.Rmd runs the same analysis.
 Use --no-plots to generate tables only.
 
-- state_agreement_components.png: patient-state Jaccard, inactive-inactive share of agreements and active-state Jaccard under the original rule, for all 58 and the 12 selected signatures.
-- threshold_sensitivity_principal_pairs.png: patient-state and active-state Jaccard of the 48 cross-compendium selected pairs under the four rules, with the pairs discussed in the manuscript and their ranks.
+- state_agreement_components.png/.tiff/.pdf (supplementary figure, 6.8 x 6.7 in, 600 dpi): under the original rule, (a) inactive-inactive share of agreements and (b) active-state Jaccard for all 58 signatures (their patient-state Jaccard is Figure 4a), and (c-e) the three measures for the 12 selected signatures. Same signature order, orientation and grey diagonal as Figure 4.
+- threshold_sensitivity_principal_pairs.png/.tiff/.pdf (supplementary figure, 6.8 x 3.6 in, 600 dpi): patient-state and active-state Jaccard of the 48 cross-compendium selected pairs under the four rules (grey points and boxes), with the pairs discussed in the manuscript and their ranks among the 48 (1 = strongest).
 - principal_pair_ranks.csv: rank of each pair discussed in the manuscript among the 48 selected cross-compendium pairs, per rule, for patient-state and active-state Jaccard.
 - pair_metrics.csv: raw counts, number of concordant patients, original Jaccard, agreement shares and marginal active prevalences for all 6,612 pair/rule combinations.
 - principal_pairs.csv: the four manuscript comparisons and the sparse example CN4/CN10 under each rule, with all counts and metrics.
