@@ -1,0 +1,9 @@
+Positive class: Cluster 1. Outer hold-out: 80/20 by cancer type.
+Fixed XGBoost parameters (tuned once on the historical training set); probability cutoff = 0.5: nrounds=1375, eta=0.15, max_depth=4, gamma=0, colsample_bytree=1, min_child_weight=5, subsample=0.75
+Split 0, when present, reconstructs the historical seed-1234 partition and is excluded from across-split summaries.
+Archived final predictor matrix used unchanged; no new feature filtering or scaling.
+Split stability is conditional on the original global preprocessing; this run does not resolve that limitation.
+F1 intervals: 95% percentile bootstrap of test patients within cancer type, conditional on the fitted model.
+Across-split SD/range describe refitting variability; overlapping splits are not independent studies.
+Frameworks predict different cluster targets; their F1 values are not a biological quality ranking.
+Run signature: 926b9cbf1cc17196bbb0e51e8a0c4140017ab29f1f09b8182c25af9c7a0911e4
