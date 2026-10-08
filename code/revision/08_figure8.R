@@ -1,12 +1,15 @@
-# Figure 8 (panels a-e) from the revised cluster classifiers: the models fitted
+# Figure 8 from the revised cluster classifiers. Panels a-e: the models fitted
 # on split 0 (cancer-type-stratified 80/20 partition, seed 1234) with the
-# saved cluster assignments. Panel f (Reactome enrichment of the Drews
-# predictors) is not recomputed: the original panel is placed from
-# results/revision/prediction/figure8/panel_f_reactome_original.png.
+# saved cluster assignments. Panel f: Cluster 1 test-set F1 on split 0 with
+# its 95% bootstrap interval and on the 20 repeated splits. The submitted
+# panel f (Reactome enrichment of the Drews predictors) is no longer shown: no
+# Reactome term is significant for the revised classifiers
+# (code/revision/10_reactome_enrichment.R).
 #
 # Run from the repository root after the prediction workflow:
 #   Rscript code/revision/08_figure8.R
 # Inputs:  results/revision/prediction/fixed/archived/<framework>/predictions.csv
+#          results/revision/prediction/fixed/all_split_metrics.csv
 #          results/revision/prediction/fixed/archived/<framework>/checkpoints/split_000_seed_1234.rds
 #          final_matrices.RData (feature names; data/processed/zenodo/ or root)
 # Outputs: results/revision/prediction/figure8/
@@ -118,17 +121,47 @@ panel_e <- ggplot(panel_e_data, aes(framework, data_type, size = Freq, fill = da
         legend.justification = "top")
 utils::write.csv(panel_e_data, file.path(out, "panel_e_counts.csv"), row.names = FALSE)
 
-# Panel f: the original Reactome enrichment of the Drews predictors, placed
-# from an image file if available (not recomputed here).
-reactome <- file.path(out, "panel_f_reactome_original.png")
-panel_f <- if (file.exists(reactome)) {
-  wrap_elements(full = grid::rasterGrob(png::readPNG(reactome), interpolate = TRUE))
-} else plot_spacer()
+# Panel f: Cluster 1 test-set F1. Diamonds: reconstructed original split with
+# its 95% bootstrap interval; points: the 20 repeated splits (vertical jitter
+# only, so F1 values are exact). Labels give the Cluster 1 proportion, since
+# the three classifiers predict different targets.
+metrics <- read.csv(file.path(dirname(fixed), "all_split_metrics.csv"),
+                    colClasses = c(split_id = "character"))
+metrics <- metrics[metrics$variant == "archived", ]
+lanes <- rev(frameworks)
+metrics$row <- match(metrics$framework, lanes)
+original <- metrics[metrics$split_id == "0", ]
+repeated <- metrics[metrics$split_id != "0", ]
+prevalence <- round(100 * tapply(metrics$prevalence_cluster1, metrics$framework, mean))
+point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Original split, 95% CI"
+panel_f <- ggplot() +
+  geom_point(data = repeated, aes(f1, row - .13, colour = framework, shape = point_lab),
+             position = position_jitter(width = 0, height = .065, seed = 42),
+             size = .85, alpha = .65) +
+  geom_errorbar(data = original, aes(xmin = f1_lower_95, xmax = f1_upper_95, y = row + .13,
+                                     colour = framework),
+                orientation = "y", width = .075, linewidth = .35) +
+  geom_point(data = original, aes(f1, row + .13, colour = framework, shape = diamond_lab),
+             fill = "white", size = 1.65, stroke = .4) +
+  scale_colour_manual(values = colours, guide = "none") +
+  scale_shape_manual(name = NULL, breaks = c(point_lab, diamond_lab),
+                     values = setNames(c(16, 23), c(point_lab, diamond_lab))) +
+  scale_y_continuous(breaks = seq_along(lanes),
+                     labels = sprintf("%s\nCluster 1: %d%%", lanes, prevalence[lanes])) +
+  scale_x_continuous(breaks = seq(.5, 1, .1)) +
+  coord_cartesian(xlim = c(.5, 1), ylim = c(.65, 3.35)) +
+  labs(x = "Test-set F1 (Cluster 1)", y = NULL) +
+  theme_minimal(base_size = 5.5) +
+  theme(axis.text = element_text(colour = "black"), panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank(), legend.position = "top",
+        legend.key.width = grid::unit(8, "pt"), legend.key.height = grid::unit(8, "pt"),
+        legend.margin = margin(0, 0, 2, 0))
+
 # Same format as the submitted Figure 8: 6.8 x 7.35 in at 600 dpi
 # (4080 x 4411 px), LZW-compressed TIFF, a/b, c/d, e/f layout.
 figure <- (accuracy_panel("Drews") | accuracy_panel("Steele")) /
   (accuracy_panel("Tao") | panel_d) /
-  (panel_e + panel_f + plot_layout(widths = c(.34, .66))) +
+  (panel_e + panel_f + plot_layout(widths = c(.5, .5))) +
   plot_annotation(tag_levels = "a") &
   theme(plot.tag = element_text(face = "bold", size = 9))
 size <- c(width = 4080 / 600, height = 4411 / 600)
