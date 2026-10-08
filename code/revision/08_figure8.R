@@ -131,8 +131,8 @@ utils::write.csv(panel_e_data, file.path(out, "panel_e_counts.csv"), row.names =
 
 # Panel f: Cluster 1 test-set F1. Diamonds: reconstructed original split with
 # its 95% bootstrap interval; points: the 20 repeated splits (vertical jitter
-# only, so F1 values are exact). Labels give the Cluster 1 proportion, since
-# the three classifiers predict different targets.
+# only, so F1 values are exact). The Cluster 1 proportion of each cohort is
+# given in the caption.
 metrics <- read.csv(file.path(dirname(fixed), "all_split_metrics.csv"),
                     colClasses = c(split_id = "character"))
 metrics <- metrics[metrics$variant == "archived", ]
@@ -140,11 +140,6 @@ lanes <- rev(frameworks)
 metrics$row <- match(metrics$framework, lanes)
 original <- metrics[metrics$split_id == "0", ]
 repeated <- metrics[metrics$split_id != "0", ]
-# Cluster 1 proportion in each classification cohort (all eligible patients).
-prevalence <- sapply(frameworks, function(fw) {
-  m <- read.csv(file.path(fixed, fw, "manifests.csv"), colClasses = c(split_id = "character"))
-  round(100 * mean(m$truth[m$split_id == "0"] == "1"))
-})
 point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Original split, 95% CI"
 panel_f <- ggplot() +
   geom_point(data = repeated, aes(f1, row - .13, colour = framework, shape = point_lab),
@@ -158,8 +153,7 @@ panel_f <- ggplot() +
   scale_colour_manual(values = colours, guide = "none") +
   scale_shape_manual(name = NULL, breaks = c(point_lab, diamond_lab),
                      values = setNames(c(16, 23), c(point_lab, diamond_lab))) +
-  scale_y_continuous(breaks = seq_along(lanes),
-                     labels = sprintf("%s\nCluster 1: %d%%", lanes, prevalence[lanes])) +
+  scale_y_continuous(breaks = seq_along(lanes), labels = lanes) +
   scale_x_continuous(breaks = seq(.5, 1, .1)) +
   coord_cartesian(xlim = c(.5, 1), ylim = c(.65, 3.35)) +
   labs(x = "Test-set F1 (Cluster 1)", y = NULL) +
