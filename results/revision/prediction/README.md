@@ -128,9 +128,15 @@ The submitted Figure 8f is the STRING enrichment figure (category Reactome,
 whole-genome background, FDR < 0.05). The script repeats that analysis through
 the STRING API (version 12.0, fixed address) on the gene symbols of the
 expression and methylation predictors in the 80%-gain sets of the split-0
-models. Applied to the 300 predictors of the submitted Drews classifier, the
-same procedure returns the main published terms (oxidative-stress-induced and
-cellular senescence, pre-NOTCH transcription and translation, mitotic cell
-cycle), driven largely by histone-cluster methylation features. For the
-revised classifiers no Reactome term reaches FDR < 0.05 in any framework
+models. The submitted panel was computed on the 300 predictors of the
+submitted Drews classifier (the list released as Supplementary Data 1 of an
+earlier version). With those genes the same procedure returns the main
+published terms (oxidative-stress-induced and cellular senescence, pre-NOTCH
+transcription and translation, mitotic cell cycle), driven largely by
+histone-cluster methylation features. The ERBB2-related terms and
+oncogene-induced senescence of the submitted panel appear only when the
+complete list is submitted, including the names of pathway-level mutation
+features, which STRING maps to EGFR, PIK3CA and TP53; these are not gene
+predictors and are excluded here. For the revised classifiers no Reactome term
+reaches FDR < 0.05 in any framework, with either gene list
 (`reactome/summary.csv`), so no panel is drawn.
