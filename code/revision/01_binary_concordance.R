@@ -269,6 +269,8 @@ bc_plot_threshold_sensitivity <- function(pairs, ranks, rules,
     data.frame(rule = subset$rule, metric = metrics[[m]], value = subset[[m]])))
   hits <- ranks[ranks$metric %in% names(metrics) & ranks$rule %in% rules, ]
   hits$metric <- metrics[hits$metric]
+  # Pair keys are alphabetical (CN1/CX1); label them as in the manuscript.
+  hits$pair[hits$pair == "CN1/CX1"] <- "CX1/CN1"
   rule_short <- c(original = "Original", positive_q25 = "Pos. Q25",
                   positive_q50 = "Pos. Q50", positive_q75 = "Pos. Q75")
   for (nm in c("long", "hits")) {
@@ -286,7 +288,8 @@ bc_plot_threshold_sensitivity <- function(pairs, ranks, rules,
                              nudge_x = .32, direction = "y", size = 2.3, min.segment.length = Inf,
                              box.padding = .1, seed = 1, show.legend = FALSE) +
     ggplot2::facet_wrap(~ metric, nrow = 1, scales = "free_y") +
-    ggplot2::scale_colour_manual(values = c("#08519c", "#6baed6", "#e6550d"), name = NULL) +
+    ggplot2::scale_colour_manual(values = c(`CN1/Sig1` = "#6baed6", `CN1/Sig2` = "#e6550d",
+                                            `CX1/CN1` = "#08519c"), name = NULL) +
     ggplot2::theme_bw(base_size = 8) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(), legend.position = "bottom",
                    axis.text = ggplot2::element_text(colour = "black"),
