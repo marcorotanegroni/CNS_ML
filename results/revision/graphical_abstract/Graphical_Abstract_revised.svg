@@ -91,5 +91,5 @@
   <text x="1790" y="655" font-family="Arial, Helvetica, sans-serif" font-size="48" fill="#b7d4e8">Tao</text>
 
   <rect x="55" y="725" width="1890" height="58" rx="24" fill="#e9eff4"/>
-  <text x="1000" y="770" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700" fill="#17324d">Expression-only models retained F1 for Drews and Steele, not Tao</text>
+  <text x="1000" y="770" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="50" font-weight="700" fill="#17324d">Gene expression retained most predictive signal</text>
 </svg>
