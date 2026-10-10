@@ -1,0 +1,53 @@
+"panel","intersection","n"
+"a","Steele_2 & Tao_2",1644
+"a","Drews_4 & Steele_2 & Tao_2",589
+"a","Drews_1 & Steele_1 & Tao_2",414
+"a","Drews_1 & Steele_3 & Tao_3",407
+"a","Drews_4 & Steele_1 & Tao_2",356
+"a","Drews_1 & Steele_2 & Tao_2",304
+"a","Drews_2 & Steele_2 & Tao_2",304
+"a","Steele_4 & Tao_1",296
+"a","Drews_1 & Steele_3 & Tao_1",262
+"a","Drews_1 & Steele_1 & Tao_3",238
+"a","Drews_4 & Steele_4 & Tao_1",207
+"a","Drews_4 & Steele_4 & Tao_3",206
+"a","Steele_4 & Tao_2",199
+"a","Steele_4 & Tao_3",184
+"a","Drews_3 & Steele_4 & Tao_1",180
+"a","Steele_3 & Tao_3",170
+"a","Drews_3 & Steele_3 & Tao_1",163
+"a","Drews_1 & Steele_4 & Tao_1",154
+"a","Steele_1 & Tao_2",146
+"a","Drews_1 & Steele_4 & Tao_3",139
+"a","Drews_2 & Steele_4 & Tao_1",127
+"a","Steele_3 & Tao_1",125
+"a","Drews_4 & Steele_4 & Tao_2",123
+"a","Drews_2 & Steele_4 & Tao_3",92
+"a","Drews_3 & Steele_4 & Tao_3",85
+"a","Drews_3 & Steele_3 & Tao_3",80
+"a","Drews_1 & Steele_4 & Tao_2",75
+"a","Drews_2 & Steele_4 & Tao_2",62
+"a","Drews_4 & Steele_3 & Tao_3",55
+"a","Steele_1 & Tao_3",54
+"b","Steele_2 & Tao_2",2270
+"b","Tao_1",997
+"b","Drews_1",587
+"b","Steele_1 & Tao_2",515
+"b","Tao_2",433
+"b","Drews_1 & Tao_1",416
+"b","Drews_1 & Steele_1 & Tao_2",414
+"b","Drews_1 & Steele_2 & Tao_2",304
+"b","Drews_2 & Steele_2 & Tao_2",304
+"b","Drews_1 & Steele_1",244
+"b","Drews_2 & Tao_1",127
+"b","Drews_2",97
+"b","Drews_1 & Tao_2",89
+"b","Steele_1",76
+"b","Drews_2 & Tao_2",62
+"c","Steele_2 & Tao_2",2574
+"c","Tao_2",1451
+"c","Drews_2 & Steele_2 & Tao_2",304
+"c","Drews_2",224
+"c","Steele_2",125
+"c","Drews_2 & Tao_2",77
+"c","Drews_2 & Steele_2",9

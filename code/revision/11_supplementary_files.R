@@ -1,6 +1,6 @@
 # Supplementary items of the revision under their manuscript numbers.
-# Copies the figures produced by 01_binary_concordance.R and
-# 09_supplementary_figure5.R and writes Supplementary Table 2 (binary
+# Copies the figures produced by 01_binary_concordance.R,
+# 09_supplementary_figure5.R and 12_supplementary_figure3.R and writes Supplementary Table 2 (binary
 # agreement per signature pair and the thresholds of each rule) as CSV.
 # Exploratory quantities (expected n11, observed/expected n11, Cohen's kappa)
 # stay in results/revision/binary_concordance/ and are not part of the table.
@@ -14,6 +14,7 @@ dir.create(out, recursive = TRUE, showWarnings = FALSE)
 concordance <- "results/revision/binary_concordance"
 
 copies <- c(
+  Supplementary_Figure_3 = "results/revision/supplementary_figure3/Supplementary_Figure3",
   Supplementary_Figure_5 = "results/revision/survival/Supplementary_Figure5",
   Supplementary_Figure_7 = file.path(concordance, "state_agreement_components"),
   Supplementary_Figure_8 = file.path(concordance, "threshold_sensitivity_principal_pairs"))
