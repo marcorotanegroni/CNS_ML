@@ -49,6 +49,16 @@ The `expression_only` variant (`--variants expression_only`) refits the same
 fixed configuration on the same saved splits with the archived gene expression
 predictors only, for the manuscript comparison of expression-only classifiers.
 
+The `fga_baseline` variant (`code/revision/14_fga_prediction.R`) predicts
+Cluster 1 versus Cluster 2 from fraction genome altered alone
+(`data/processed/fga_pancanatlas.csv`, from `13_fetch_fga.R`), the scalar
+baseline requested by Reviewer 2. Same patients and saved splits; patients
+without FGA (2-3%) keep a missing value. Hyperparameters are tuned once on the
+split-0 training set with the original grid (`fixed/tuning_fga/`), since the
+multi-omic configuration was chosen for 35,000 predictors. Run locally with
+XGBoost 1.7.5 (`tree_method = "hist"`); the multi-omic models were fitted with
+XGBoost 3.2 on the cluster.
+
 Variants for the Reviewer 2 comments (filters refitted within the training
 fold, no purity, scalar baseline) are implemented in the same script
 (`--variants`) and use the same saved partitions; they are not part of this
