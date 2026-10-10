@@ -1,0 +1,6 @@
+Retrieved: 2026-10-10 15:10 CEST
+API: https://www.cbioportal.org/api (sample attribute FRACTION_GENOME_ALTERED, 'Fraction Genome Altered')
+Studies: 32 TCGA PanCanAtlas 2018 studies
+Samples returned: 10767 (sample types: 01 = 10199, 02 = 9, 03 = 191, 06 = 368)
+Primary tumours kept (01; 03 for LAML), one per patient: 10390
+Definition: total length of segments with |segment mean| >= 0.2 divided by the total length of measured segments, from each study's segment file (cbioportal-core FractionGenomeAlteredCalculator; cbioportal v5.4.0 DaoCopyNumberSegment).
