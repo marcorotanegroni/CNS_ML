@@ -1,0 +1,245 @@
+---
+title: "Fraction genome altered as a scalar baseline (Reviewer 2)"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include = FALSE}
+# Paths are relative to the repository root.
+knitr::opts_knit$set(root.dir = normalizePath(file.path(getwd(), "..", "..")))
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 8, fig.height = 4.5)
+```
+
+```{r packages}
+library(survival)
+library(survminer)
+library(ggplot2)
+library(patchwork)
+frameworks <- c("Drews", "Steele", "Tao")
+colours <- c(Drews = "#1f78b4", Steele = "#33a02c", Tao = "#e31a1c")
+```
+
+# Scope
+
+Reviewer 2: *"Adding one scalar baseline (fraction of genome altered, ploidy,
+WGD, or an HRD score) to the clustering, survival, and prediction comparisons
+would answer the obvious question of how much structure requires signatures at
+all."*
+
+We use fraction genome altered (FGA), the most general of the suggested
+measures, in the three comparisons, with the same patients, saved clusters and
+splits as the manuscript.
+
+Scripts (each can also be run on its own from the repository root):
+
+| Step | Script | Output |
+|---|---|---|
+| FGA download | `code/revision/13_fetch_fga.R` | `data/processed/fga_pancanatlas.csv` |
+| Prediction | `code/revision/14_fga_prediction.R` | `results/revision/prediction/fixed/fga_baseline/` |
+| Survival | `code/revision/15_fga_survival.R` | `results/revision/fga_baseline/survival_cox.csv` |
+| Clustering | `code/revision/16_fga_clustering.R` | `results/revision/fga_baseline/clustering_fga_*.csv` |
+
+This notebook reads the saved FGA values and prediction results, and reruns
+the survival and clustering analyses, which take a few seconds. To refresh the
+FGA download (internet needed) or the prediction models (about 15 minutes),
+run the corresponding scripts first.
+
+# FGA data
+
+FGA from the cBioPortal TCGA PanCanAtlas 2018 studies (sample attribute
+`FRACTION_GENOME_ALTERED`): total length of segments with |segment mean| ≥ 0.2
+divided by the total length of the measured segments. One primary tumour per
+patient.
+
+```{r fga-data}
+fga_table <- read.csv("data/processed/fga_pancanatlas.csv")
+fga <- setNames(fga_table$fga, fga_table$patient)
+writeLines(readLines("data/processed/fga_pancanatlas_provenance.txt"))
+summary(fga)
+ggplot(fga_table, aes(fga)) + geom_histogram(bins = 50, fill = "grey60") +
+  labs(x = "Fraction genome altered", y = "Tumours") + theme_minimal()
+```
+
+## Coverage on the manuscript cohorts
+
+```{r coverage}
+cl <- new.env(); load("data/processed/clustering_data.RData", envir = cl)
+sv <- new.env(); load("data/processed/surv_data.RData", envir = sv)
+fits <- c(Drews = "mc_drew_active_4", Steele = "mc_steele_active_4", Tao = "mc_tao_active_4")
+survs <- c(Drews = "drew_f", Steele = "steele_f", Tao = "tao_f")
+coverage <- do.call(rbind, lapply(frameworks, function(fw) {
+  cls <- cl[[fits[fw]]]$classification
+  surv_ids <- rownames(sv[[survs[fw]]])
+  m <- read.csv(file.path("results/revision/prediction/fixed/archived", fw, "manifests.csv"),
+                colClasses = c(split_id = "character"))
+  pred_ids <- m$patient_id[m$split_id == "0"]
+  f <- function(ids) sprintf("%d / %d (%.1f%%)", sum(!is.na(fga[ids])), length(ids),
+                             100 * mean(!is.na(fga[ids])))
+  data.frame(framework = fw, clustering = f(names(cls)), survival = f(surv_ids),
+             prediction_cluster1_2 = f(pred_ids))
+}))
+knitr::kable(coverage)
+```
+
+# 1. Clustering: FGA across the signature-based clusters
+
+```{r clustering}
+source("code/revision/16_fga_clustering.R")
+```
+
+```{r clustering-plot, fig.height = 3.5}
+long <- do.call(rbind, lapply(frameworks, function(fw) {
+  cls <- cl[[fits[fw]]]$classification
+  data.frame(framework = fw, cluster = paste("Cluster", cls), fga = unname(fga[names(cls)]))
+}))
+long <- long[!is.na(long$fga), ]
+long$framework <- factor(long$framework, frameworks)
+r2 <- read.csv("results/revision/fga_baseline/clustering_fga_variance.csv")
+r2$label <- sprintf("R2 = %.2f\n(beyond cancer type %.2f)", r2$r2_cluster,
+                    r2$partial_r2_cluster_given_cancer_type)
+r2$framework <- factor(r2$framework, frameworks)
+ggplot(long, aes(cluster, fga, fill = framework)) +
+  geom_boxplot(outlier.size = .3, alpha = .6) +
+  geom_text(data = r2, aes(x = Inf, y = Inf, label = label), inherit.aes = FALSE,
+            hjust = 1.05, vjust = 1.2, size = 2.8) +
+  facet_wrap(~framework, scales = "free_x") +
+  scale_fill_manual(values = colours, guide = "none") +
+  labs(x = NULL, y = "Fraction genome altered") + theme_minimal()
+```
+
+# 2. Survival: Figure 7 models with FGA
+
+Cancer-type-stratified Cox models of Figure 7 (cluster + age + purity), on the
+patients with FGA, without FGA and with FGA. The effect of FGA on the log hazard
+is non-linear, so the main adjustment uses a penalized spline (`pspline`,
+4 df); the linear adjustment is shown for comparison. Holm correction as in
+Figure 7 (all cluster terms of the six models, separately for each model set).
+
+```{r survival}
+source("code/revision/15_fga_survival.R")
+cox <- read.csv("results/revision/fga_baseline/survival_cox.csv")
+```
+
+```{r survival-forest, fig.height = 4}
+labels <- c(figure7_fga_n = "Without FGA", with_fga = "FGA linear",
+            with_fga_spline = "FGA spline (main)")
+f <- cox[cox$term == "cluster2" & cox$model %in% names(labels), ]
+f$model <- factor(labels[f$model], rev(labels))
+f$row <- factor(paste(f$framework, f$endpoint), rev(unique(paste(f$framework, f$endpoint))))
+f$p_label <- sprintf("p = %.2g, Holm %.2g", f$p, f$p_holm)
+ggplot(f, aes(hr, row, colour = model)) +
+  geom_vline(xintercept = 1, linetype = 2, colour = "grey50") +
+  geom_errorbarh(aes(xmin = lower, xmax = upper), height = .25,
+                 position = position_dodge(width = .6)) +
+  geom_point(position = position_dodge(width = .6), size = 1.8) +
+  scale_colour_manual(values = c("grey40", "#fdae61", "#d7191c"), name = NULL,
+                      breaks = labels) +
+  labs(x = "Hazard ratio, Cluster 2 vs Cluster 1 (95% CI)", y = NULL) +
+  theme_minimal() + theme(legend.position = "top")
+```
+
+```{r survival-table}
+tab <- cox[cox$term == "cluster2" & cox$model %in% c("figure7", names(labels)), ]
+tab$hr_ci <- sprintf("%.2f (%.2f-%.2f)", tab$hr, tab$lower, tab$upper)
+tab$p <- signif(tab$p, 2); tab$p_holm <- signif(tab$p_holm, 2)
+knitr::kable(tab[, c("framework", "endpoint", "model", "n", "events", "hr_ci", "p", "p_holm")],
+             row.names = FALSE)
+nl <- unique(cox[, c("framework", "endpoint", "fga_nonlinearity_p")])
+knitr::kable(nl, row.names = FALSE, caption = "Likelihood-ratio test, spline vs linear FGA")
+knitr::kable(cox[cox$model == "fga_only", c("framework", "endpoint", "n", "hr", "lower", "upper", "p")],
+             row.names = FALSE, digits = 3, caption = "FGA alone (linear, HR per 0.1 increase)")
+```
+
+## Shape of the FGA effect
+
+Relative hazard over FGA from the spline models (OS), cluster, age and purity
+held fixed; reference at the median FGA.
+
+```{r spline-shape, fig.height = 3}
+shape <- do.call(rbind, lapply(names(spec), function(fw) {
+  s <- spec[[fw]]
+  d <- cox_data(s[[1]], s[[2]]$classification, s[[3]], "OS.time", "OS")
+  d <- d[!is.na(d$fga10), ]
+  fit <- coxph(Surv(time, event) ~ cluster + pspline(fga10, df = 4) + age + purity +
+                 strata(cancer_type), data = d)
+  tp <- termplot(fit, terms = 2, se = TRUE, plot = FALSE)[[1]]
+  ref <- tp$y[which.min(abs(tp$x - median(d$fga10)))]
+  data.frame(framework = fw, fga = tp$x / 10, hr = exp(tp$y - ref),
+             lower = exp(tp$y - ref - 1.96 * tp$se), upper = exp(tp$y - ref + 1.96 * tp$se))
+}))
+ggplot(shape, aes(fga, hr, colour = framework, fill = framework)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = .15, colour = NA) +
+  geom_line() + geom_hline(yintercept = 1, linetype = 2) +
+  facet_wrap(~framework) + scale_y_log10() +
+  scale_colour_manual(values = colours, guide = "none") +
+  scale_fill_manual(values = colours, guide = "none") +
+  labs(x = "Fraction genome altered", y = "Relative hazard (OS)") + theme_minimal()
+```
+
+# 3. Prediction: multi-omic vs FGA-only classifiers
+
+Cluster 1 versus Cluster 2, same patients and splits (reconstructed original
+split and 20 repeated cancer-type-stratified 80/20 splits). The FGA-only model
+was tuned once on the split-0 training set with the original grid. Balanced
+accuracy (mean of the proportions of Cluster 1 and Cluster 2 patients correctly
+classified) is used because the Cluster 1 F1 depends on the class proportions;
+F1 is in the table.
+
+```{r prediction}
+models <- c(archived = "Multi-omic", fga_baseline = "FGA only")
+bal <- function(tp, fp, fn, tn) (tp / (tp + fn) + tn / (tn + fp)) / 2
+splits <- do.call(rbind, lapply(names(models), function(v) do.call(rbind, lapply(frameworks, function(fw) {
+  m <- read.csv(file.path("results/revision/prediction/fixed", v, fw, "split_metrics.csv"),
+                colClasses = c(split_id = "character"))
+  b <- read.csv(file.path("results/revision/prediction/fixed", v, fw, "bootstrap.csv"),
+                colClasses = c(split_id = "character"))
+  b <- b[b$split_id == "0", ]
+  ci <- quantile(bal(b$tp, b$fp, b$fn, b$tn), c(.025, .975))
+  data.frame(model = models[[v]], framework = fw, split_id = m$split_id,
+             balanced_accuracy = bal(m$tp, m$fp, m$fn, m$tn), f1 = m$f1, trivial_f1 = m$trivial_f1,
+             auroc = m$auroc, lower = ci[[1]], upper = ci[[2]])
+}))))
+lanes <- rev(as.vector(t(outer(frameworks, models, paste))))
+splits$y <- match(paste(splits$framework, splits$model), lanes)
+s0 <- splits[splits$split_id == "0", ]; rep <- splits[splits$split_id != "0", ]
+ggplot() +
+  geom_point(data = rep, aes(balanced_accuracy, y - .15, colour = framework),
+             position = position_jitter(width = 0, height = .05, seed = 1), size = .9, alpha = .6) +
+  geom_errorbarh(data = s0, aes(xmin = lower, xmax = upper, y = y + .15, colour = framework), height = .1) +
+  geom_point(data = s0, aes(balanced_accuracy, y + .15, colour = framework, shape = model),
+             fill = "white", size = 2.2) +
+  scale_shape_manual(values = c(`Multi-omic` = 23, `FGA only` = 22), name = NULL) +
+  scale_colour_manual(values = colours, guide = "none") +
+  scale_y_continuous(breaks = seq_along(lanes), labels = lanes) +
+  scale_x_continuous(limits = c(.5, 1)) +
+  labs(x = "Balanced accuracy (points: 20 repeated splits; symbol and bar: original split, 95% CI)",
+       y = NULL) +
+  theme_minimal() + theme(legend.position = "top", panel.grid.minor = element_blank())
+```
+
+```{r prediction-table}
+summ <- do.call(rbind, lapply(split(splits, list(splits$model, splits$framework)), function(x) {
+  o <- x[x$split_id == "0", ]; r <- x[x$split_id != "0", ]
+  data.frame(framework = o$framework, model = o$model,
+             split0_balanced_accuracy = sprintf("%.2f (%.2f-%.2f)", o$balanced_accuracy, o$lower, o$upper),
+             median_balanced_accuracy = round(median(r$balanced_accuracy), 2),
+             split0_f1 = round(o$f1, 2), trivial_f1 = round(o$trivial_f1, 2),
+             median_auroc = round(median(r$auroc), 2))
+}))
+summ <- summ[order(match(summ$framework, frameworks), summ$model != "Multi-omic"), ]
+knitr::kable(summ, row.names = FALSE)
+```
+
+# Summary
+
+```{r summary-numbers}
+r2[, c("framework", "r2_cluster", "partial_r2_cluster_given_cancer_type")]
+f[f$model == "FGA spline (main)", c("framework", "endpoint", "hr", "lower", "upper", "p", "p_holm")]
+```
+
+```{r session}
+sessionInfo()
+```
