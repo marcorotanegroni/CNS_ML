@@ -6,10 +6,14 @@
 # For each compendium and endpoint:
 #   figure7       the Figure 7 model on all its patients (reproduces Figure 7);
 #   figure7_fga_n the same model restricted to patients with an FGA value;
-#   with_fga      that model plus FGA (same patients as figure7_fga_n);
-#   fga_only      FGA + age + purity, without clusters (same patients).
-# FGA hazard ratios are per 0.1 increase. Holm adjustment of the cluster terms
-# across the six models follows Figure 7, separately for each model set.
+#   with_fga_spline  that model plus FGA as a penalized spline (pspline, 4 df;
+#                 main model: the effect of FGA on the log hazard is clearly
+#                 non-linear, likelihood-ratio test against linear p < 1e-4 in
+#                 all six models, see fga_nonlinearity);
+#   with_fga      the same with FGA linear (for comparison);
+#   fga_only      FGA (linear) + age + purity, without clusters.
+# Linear FGA hazard ratios are per 0.1 increase. Holm adjustment of the cluster
+# terms across the six models follows Figure 7, separately for each model set.
 #
 # Run from the repository root after 13_fetch_fga.R:
 #   Rscript code/revision/15_fga_survival.R
@@ -40,12 +44,14 @@ cox_data <- function(df, cluster_vec, sig_vars, time_var, event_var) {
 terms <- function(fit, model, framework, endpoint) {
   s <- summary(fit)
   co <- s$coefficients; ci <- s$conf.int
-  keep <- grepl("^cluster|^fga10$", rownames(co))
+  # Match rows by name: for pspline fits the coefficient and confidence tables
+  # list the spline terms differently.
+  keep <- intersect(grep("^cluster[0-9]+$|^fga10$", rownames(co), value = TRUE), rownames(ci))
+  pcol <- if ("Pr(>|z|)" %in% colnames(co)) "Pr(>|z|)" else "p"
   data.frame(framework = framework, endpoint = endpoint, model = model,
-             n = fit$n, events = fit$nevent,
-             term = sub("^cluster", "cluster", rownames(co)[keep]),
+             n = fit$n, events = fit$nevent, term = keep,
              hr = ci[keep, "exp(coef)"], lower = ci[keep, "lower .95"],
-             upper = ci[keep, "upper .95"], p = co[keep, "Pr(>|z|)"], row.names = NULL)
+             upper = ci[keep, "upper .95"], p = co[keep, pcol], row.names = NULL)
 }
 
 spec <- list(Drews = list(drew_f, mc_drew_active_4, c("CX1", "CX2", "CX3", "CX5")),
@@ -60,8 +66,13 @@ for (fw in names(spec)) for (ep in c("OS", "PFI")) {
   f1 <- coxph(Surv(time, event) ~ cluster + age + purity + strata(cancer_type), data = dn)
   f2 <- coxph(Surv(time, event) ~ cluster + fga10 + age + purity + strata(cancer_type), data = dn)
   f3 <- coxph(Surv(time, event) ~ fga10 + age + purity + strata(cancer_type), data = dn)
+  f4 <- coxph(Surv(time, event) ~ cluster + pspline(fga10, df = 4) + age + purity +
+                strata(cancer_type), data = dn)
+  nonlinear <- anova(f2, f4)[["Pr(>|Chi|)"]][2]
   results[[paste(fw, ep)]] <- rbind(terms(f0, "figure7", fw, ep), terms(f1, "figure7_fga_n", fw, ep),
+                                    terms(f4, "with_fga_spline", fw, ep),
                                     terms(f2, "with_fga", fw, ep), terms(f3, "fga_only", fw, ep))
+  results[[paste(fw, ep)]]$fga_nonlinearity_p <- nonlinear
 }
 res <- do.call(rbind, results)
 res$p_holm <- NA_real_
@@ -70,7 +81,7 @@ for (m in unique(res$model)) {
   res$p_holm[i] <- p.adjust(res$p[i], method = "holm")
 }
 utils::write.csv(res, file.path(out, "survival_cox.csv"), row.names = FALSE)
-show <- res[res$term %in% c("cluster2", "fga10"), ]
+show <- res[res$term %in% c("cluster2", "fga10") & res$model != "fga_only", ]
 show[, c("hr", "lower", "upper")] <- round(show[, c("hr", "lower", "upper")], 2)
 show$p_holm <- signif(show$p_holm, 2)
 print(show[, c("framework", "endpoint", "model", "n", "term", "hr", "lower", "upper", "p_holm")], row.names = FALSE)
