@@ -51,8 +51,10 @@ run the corresponding scripts first.
 
 FGA from the cBioPortal TCGA PanCanAtlas 2018 studies (sample attribute
 `FRACTION_GENOME_ALTERED`): total length of segments with |segment mean| ≥ 0.2
-divided by the total length of the measured segments. One primary tumour per
-patient.
+divided by the total length of the measured segments. One sample per patient:
+the primary tumour or, when there is none, the metastasis (365 SKCM patients,
+whose TCGA samples are mostly metastatic; without them FGA would be missing for
+most melanomas, not at random).
 
 ```{r fga-data}
 fga_table <- read.csv("data/processed/fga_pancanatlas.csv")

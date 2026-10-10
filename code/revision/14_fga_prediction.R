@@ -6,8 +6,8 @@
 # Hyperparameters are tuned once per framework on the split-0 training set with
 # the original grid and 10-fold CV, as for the multi-omic models (whose
 # configuration was tuned for 35,000 predictors and is not reused for one).
-# Patients without an FGA value (2-3%) are kept with a missing value, which
-# XGBoost handles, so the cohorts and splits are identical.
+# Patients without an FGA value (about 2%) are kept with a missing value,
+# which XGBoost handles, so the cohorts and splits are identical.
 #
 # Run from the repository root after 13_fetch_fga.R and the multi-omic
 # evaluation (it reads the saved partitions and labels):

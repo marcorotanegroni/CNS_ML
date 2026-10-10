@@ -6,7 +6,10 @@
 # study's segment file as the total length of segments with
 # |segment mean| >= 0.2 divided by the total length of the measured segments
 # (cbioportal-core, FractionGenomeAlteredCalculator), rounded to four decimals.
-# One primary tumour sample per patient is kept (sample type 01, or 03 for LAML).
+# One sample per patient: the primary tumour (sample type 01, or 03 for LAML)
+# or, when there is none, the metastasis (06). The second case concerns almost
+# only SKCM, whose TCGA samples are mostly metastatic: without it FGA would be
+# missing for most melanomas, i.e. not at random.
 #
 # Run from the repository root (needs internet access; the API is occasionally
 # unavailable, so each request is retried):
@@ -42,8 +45,11 @@ stopifnot(!anyNA(fga$fga), all(fga$fga >= 0 & fga$fga <= 1))
 fga$sample_type <- substr(fga$sample, 14, 15)
 primary <- fga[fga$sample_type %in% c("01", "03"), ]
 if (anyDuplicated(primary$patient)) stop("More than one primary sample per patient.")
-primary <- primary[order(primary$patient), c("patient", "sample", "study", "fga")]
-utils::write.csv(primary, file.path(out, "fga_pancanatlas.csv"), row.names = FALSE)
+metastasis <- fga[fga$sample_type == "06" & !fga$patient %in% primary$patient, ]
+if (anyDuplicated(metastasis$patient)) stop("More than one metastatic sample per patient.")
+chosen <- rbind(primary, metastasis)
+chosen <- chosen[order(chosen$patient), c("patient", "sample", "sample_type", "study", "fga")]
+utils::write.csv(chosen, file.path(out, "fga_pancanatlas.csv"), row.names = FALSE)
 
 meta <- get_json(paste0(api, "/studies/", studies[1], "/clinical-attributes/FRACTION_GENOME_ALTERED"))
 writeLines(c(
@@ -52,7 +58,10 @@ writeLines(c(
   paste0("Studies: ", length(studies), " TCGA PanCanAtlas 2018 studies"),
   paste0("Samples returned: ", nrow(fga), " (sample types: ",
          paste(names(table(fga$sample_type)), table(fga$sample_type), sep = " = ", collapse = ", "), ")"),
-  paste0("Primary tumours kept (01; 03 for LAML), one per patient: ", nrow(primary)),
+  paste0("One sample per patient: primary tumour (01; 03 for LAML) for ", nrow(primary),
+         " patients; metastasis (06) when no primary was available for ", nrow(metastasis),
+         " patients (", paste(names(table(metastasis$study)), table(metastasis$study), sep = " = ",
+                              collapse = ", "), ")"),
   "Definition: total length of segments with |segment mean| >= 0.2 divided by the total length of measured segments, from each study's segment file (cbioportal-core FractionGenomeAlteredCalculator; cbioportal v5.4.0 DaoCopyNumberSegment)."),
   file.path(out, "fga_pancanatlas_provenance.txt"))
-message("FGA for ", nrow(primary), " primary tumours written to ", file.path(out, "fga_pancanatlas.csv"))
+message("FGA for ", nrow(chosen), " patients written to ", file.path(out, "fga_pancanatlas.csv"))
