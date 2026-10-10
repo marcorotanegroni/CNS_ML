@@ -86,6 +86,15 @@ knitr::kable(coverage)
 
 # 1. Clustering: FGA across the signature-based clusters
 
+- **R2**: share of the differences in FGA between tumours explained by the
+  cluster they belong to (1 = each cluster has a single FGA value; 0 = all
+  clusters have the same FGA distribution).
+- **Beyond cancer type** (partial R2): FGA depends strongly on cancer type, and
+  clusters are partly related to cancer type. After removing the part of FGA
+  explained by cancer type, this is the share of the remaining variation
+  explained by the clusters, i.e. how much the cluster says about FGA among
+  tumours of the same type.
+
 ```{r clustering}
 source("code/revision/16_fga_clustering.R")
 ```
@@ -113,10 +122,19 @@ ggplot(long, aes(cluster, fga, fill = framework)) +
 # 2. Survival: Figure 7 models with FGA
 
 Cancer-type-stratified Cox models of Figure 7 (cluster + age + purity), on the
-patients with FGA, without FGA and with FGA. The effect of FGA on the log hazard
-is non-linear, so the main adjustment uses a penalized spline (`pspline`,
-4 df); the linear adjustment is shown for comparison. Holm correction as in
-Figure 7 (all cluster terms of the six models, separately for each model set).
+patients with FGA, without FGA and with FGA. The question is how much of the
+association of the clusters with outcome remains when patients with similar
+FGA are compared.
+
+- **FGA linear**: FGA enters as a straight line on the log-hazard scale (first
+  attempt).
+- **FGA spline (main)**: FGA enters as a flexible curve (penalized spline,
+  `pspline`, 4 df). The likelihood-ratio test below shows that the effect of FGA
+  is clearly non-linear, so this is the correct adjustment; the linear version
+  is shown only to see how much the choice matters.
+
+Holm correction as in Figure 7 (all cluster terms of the six models, separately
+for each model set).
 
 ```{r survival}
 source("code/revision/15_fga_survival.R")
@@ -153,10 +171,40 @@ knitr::kable(cox[cox$model == "fga_only", c("framework", "endpoint", "n", "hr", 
              row.names = FALSE, digits = 3, caption = "FGA alone (linear, HR per 0.1 increase)")
 ```
 
+## Hazard ratio tables (as in notebook 03)
+
+All clusters (reference: Cluster 1), same patients with FGA, without FGA and
+with FGA as a spline. Unadjusted p-values; the Holm-adjusted values are in the
+table above.
+
+```{r survival-gtsummary}
+library(gtsummary)
+hr_tables <- list(); headers <- character()
+for (fw in names(spec)) for (ep in c("OS", "PFI")) {
+  s <- spec[[fw]]
+  d <- cox_data(s[[1]], s[[2]]$classification, s[[3]], paste0(ep, ".time"), ep)
+  d <- d[!is.na(d$fga10), ]
+  without <- coxph(Surv(time, event) ~ cluster + age + purity + strata(cancer_type), data = d)
+  with_spline <- coxph(Surv(time, event) ~ cluster + pspline(fga10, df = 4) + age + purity +
+                         strata(cancer_type), data = d)
+  hr_tables[[length(hr_tables) + 1]] <- tbl_merge(
+    list(tbl_regression(without, exp = TRUE, include = "cluster") %>% bold_p(t = 0.05),
+         tbl_regression(with_spline, exp = TRUE, include = "cluster") %>% bold_p(t = 0.05)),
+    tab_spanner = c("**Without FGA**", "**With FGA (spline)**"))
+  headers <- c(headers, paste0(fw, " - ", ep, " (n = ", nrow(d), ")"))
+}
+tbl_stack(hr_tables, group_header = headers)
+```
+
 ## Shape of the FGA effect
 
-Relative hazard over FGA from the spline models (OS), cluster, age and purity
-held fixed; reference at the median FGA.
+How the risk changes with FGA in the spline models (OS), at equal cluster, age
+and purity. y axis: hazard relative to a tumour with the median FGA (log
+scale; 0.7 = 30% lower risk, 1.2 = 20% higher); band: 95% CI. Risk rises from
+FGA 0 to about 0.45 and then flattens; the right end is uncertain (few tumours
+with very high FGA). A straight line averages the rise and the plateau and
+under-adjusts at low FGA, where the Cluster 2 tumours lie (median FGA
+0.11-0.17).
 
 ```{r spline-shape, fig.height = 3}
 shape <- do.call(rbind, lapply(names(spec), function(fw) {
@@ -235,9 +283,16 @@ knitr::kable(summ, row.names = FALSE)
 
 # Summary
 
+Share of FGA variation explained by the clusters (overall and beyond cancer
+type), and Cluster 2 vs Cluster 1 hazard ratios after the spline adjustment
+for FGA.
+
 ```{r summary-numbers}
-r2[, c("framework", "r2_cluster", "partial_r2_cluster_given_cancer_type")]
-f[f$model == "FGA spline (main)", c("framework", "endpoint", "hr", "lower", "upper", "p", "p_holm")]
+knitr::kable(r2[, c("framework", "r2_cluster", "partial_r2_cluster_given_cancer_type")],
+             digits = 2, row.names = FALSE,
+             col.names = c("Framework", "R2 (clusters)", "R2 beyond cancer type"))
+knitr::kable(f[f$model == "FGA spline (main)", c("framework", "endpoint", "hr", "lower", "upper", "p", "p_holm")],
+             digits = 3, row.names = FALSE)
 ```
 
 ```{r session}
