@@ -10,8 +10,10 @@
 #                 main model: the effect of FGA on the log hazard is clearly
 #                 non-linear, likelihood-ratio test against linear p < 1e-4 in
 #                 all six models, see fga_nonlinearity);
-#   with_fga      the same with FGA linear (for comparison);
+#   with_fga      the same with FGA linear (sensitivity analysis: the
+#                 conclusions on the clusters are the same with either form);
 #   fga_only      FGA (linear) + age + purity, without clusters.
+# The reference for the effect of adding FGA is figure7_fga_n (same patients).
 # Linear FGA hazard ratios are per 0.1 increase. Holm adjustment of the cluster
 # terms across the six models follows Figure 7, separately for each model set.
 #

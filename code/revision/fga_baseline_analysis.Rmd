@@ -56,6 +56,20 @@ the primary tumour or, when there is none, the metastasis (365 SKCM patients,
 whose TCGA samples are mostly metastatic; without them FGA would be missing for
 most melanomas, not at random).
 
+FGA is computed from the segment means without purity correction, so tumours
+of low purity tend to have a lower FGA. The Cox models below adjust for purity;
+the FGA-only classifier does not.
+
+Same tumour sample as the signatures: checked against the ASCAT tumour
+barcodes of the TCGA SNP6 profiles (`Metadata_TCGA_ASCAT_penalty70.rds`, not
+in the repository).
+- Drews: 6134 of 6135 clustered patients with FGA have the same sample; the
+  exception is one SKCM patient (signatures on the primary, FGA on the
+  metastasis).
+- Tao: by construction, since the Tao preprocessing keeps only primary samples.
+- Steele: an estimated 42 of 9402 differ (0.4%), assuming the same ASCAT
+  profiles.
+
 ```{r fga-data}
 fga_table <- read.csv("data/processed/fga_pancanatlas.csv")
 fga <- setNames(fga_table$fga, fga_table$patient)
@@ -126,14 +140,16 @@ ggplot(long, aes(cluster, fga, fill = framework)) +
 Cancer-type-stratified Cox models of Figure 7 (cluster + age + purity), on the
 patients with FGA, without FGA and with FGA. The question is how much of the
 association of the clusters with outcome remains when patients with similar
-FGA are compared.
+FGA are compared. The reference is always the model without FGA on the same
+patients (`figure7_fga_n`), so that the only difference is FGA; the Figure 7
+values on all patients are listed in the table for comparison.
 
-- **FGA linear**: FGA enters as a straight line on the log-hazard scale (first
-  attempt).
 - **FGA spline (main)**: FGA enters as a flexible curve (penalized spline,
   `pspline`, 4 df). The likelihood-ratio test below shows that the effect of FGA
-  is clearly non-linear, so this is the correct adjustment; the linear version
-  is shown only to see how much the choice matters.
+  is clearly non-linear.
+- **FGA linear (sensitivity analysis)**: FGA enters as a straight line on the
+  log-hazard scale. The conclusions on the clusters are the same with either
+  specification (table "Spline vs linear" below).
 
 Holm correction as in Figure 7 (all cluster terms of the six models, separately
 for each model set).
@@ -167,6 +183,18 @@ tab$hr_ci <- sprintf("%.2f (%.2f-%.2f)", tab$hr, tab$lower, tab$upper)
 tab$p <- signif(tab$p, 2); tab$p_holm <- signif(tab$p_holm, 2)
 knitr::kable(tab[, c("framework", "endpoint", "model", "n", "events", "hr_ci", "p", "p_holm")],
              row.names = FALSE)
+# Spline vs linear: Cluster 2 vs 1 on the same patients, and the share of the
+# log hazard ratio removed by adding FGA (reference: figure7_fga_n).
+wide <- function(m) {
+  x <- cox[cox$term == "cluster2" & cox$model == m, ]
+  setNames(x[, c("hr", "p_holm")], paste(m, c("hr", "p_holm"), sep = "_"))
+}
+key <- cox[cox$term == "cluster2" & cox$model == "figure7_fga_n", c("framework", "endpoint")]
+sens <- cbind(key, wide("figure7_fga_n"), wide("with_fga_spline"), wide("with_fga"))
+sens$log_hr_reduction_spline <- 1 - log(sens$with_fga_spline_hr) / log(sens$figure7_fga_n_hr)
+sens$log_hr_reduction_linear <- 1 - log(sens$with_fga_hr) / log(sens$figure7_fga_n_hr)
+knitr::kable(sens, digits = 3, row.names = FALSE,
+             caption = "Spline vs linear: Cluster 2 vs 1 HR, Holm p and log-HR reduction")
 nl <- unique(cox[, c("framework", "endpoint", "fga_nonlinearity_p")])
 knitr::kable(nl, row.names = FALSE, caption = "Likelihood-ratio test, spline vs linear FGA")
 knitr::kable(cox[cox$model == "fga_only", c("framework", "endpoint", "n", "hr", "lower", "upper", "p")],
@@ -236,10 +264,17 @@ split and 20 repeated cancer-type-stratified 80/20 splits). The FGA-only model
 was tuned once on the split-0 training set with the original grid. Balanced
 accuracy (mean of the proportions of Cluster 1 and Cluster 2 patients correctly
 classified) is used because the Cluster 1 F1 depends on the class proportions;
-F1 is in the table.
+F1 is in the table. The 2% of patients without an FGA value are kept, with the
+missing value passed to XGBoost, so that the cohorts and splits are identical.
+
+The table also lists the expression-only classifiers. For Tao, FGA alone
+performs as well as expression alone. The difference between the multi-omic
+classifier and FGA therefore comes from methylation and purity, and purity is
+itself estimated from copy number (Reviewer 2, comment 1). The comparison
+without purity is pending.
 
 ```{r prediction}
-models <- c(archived = "Multi-omic", fga_baseline = "FGA only")
+models <- c(archived = "Multi-omic", expression_only = "Expression only", fga_baseline = "FGA only")
 bal <- function(tp, fp, fn, tn) (tp / (tp + fn) + tn / (tn + fp)) / 2
 splits <- do.call(rbind, lapply(names(models), function(v) do.call(rbind, lapply(frameworks, function(fw) {
   m <- read.csv(file.path("results/revision/prediction/fixed", v, fw, "split_metrics.csv"),
@@ -252,9 +287,10 @@ splits <- do.call(rbind, lapply(names(models), function(v) do.call(rbind, lapply
              balanced_accuracy = bal(m$tp, m$fp, m$fn, m$tn), f1 = m$f1, trivial_f1 = m$trivial_f1,
              auroc = m$auroc, lower = ci[[1]], upper = ci[[2]])
 }))))
-lanes <- rev(as.vector(t(outer(frameworks, models, paste))))
-splits$y <- match(paste(splits$framework, splits$model), lanes)
-s0 <- splits[splits$split_id == "0", ]; rep <- splits[splits$split_id != "0", ]
+plotted <- splits[splits$model != "Expression only", ]
+lanes <- rev(as.vector(t(outer(frameworks, models[c("archived", "fga_baseline")], paste))))
+plotted$y <- match(paste(plotted$framework, plotted$model), lanes)
+s0 <- plotted[plotted$split_id == "0", ]; rep <- plotted[plotted$split_id != "0", ]
 ggplot() +
   geom_point(data = rep, aes(balanced_accuracy, y - .15, colour = framework),
              position = position_jitter(width = 0, height = .05, seed = 1), size = .9, alpha = .6) +
@@ -279,7 +315,7 @@ summ <- do.call(rbind, lapply(split(splits, list(splits$model, splits$framework)
              split0_f1 = round(o$f1, 2), trivial_f1 = round(o$trivial_f1, 2),
              median_auroc = round(median(r$auroc), 2))
 }))
-summ <- summ[order(match(summ$framework, frameworks), summ$model != "Multi-omic"), ]
+summ <- summ[order(match(summ$framework, frameworks), match(summ$model, models)), ]
 knitr::kable(summ, row.names = FALSE)
 ```
 
