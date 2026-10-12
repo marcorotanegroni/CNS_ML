@@ -4,9 +4,8 @@
 #      explained by the clusters (R2) and by the clusters beyond cancer type.
 #   b  Cluster 2 vs Cluster 1 hazard ratios of the Figure 7 Cox models, on the
 #      patients with an FGA value, without FGA and with FGA (penalized spline),
-#      and the share of the log hazard ratio removed by adding FGA
-#      (1 - log HR with FGA / log HR without FGA). The Holm-adjusted p-values
-#      (as in Figure 7) are in results/revision/fga_baseline/survival_cox.csv.
+#      with their 95% CIs. The Holm-adjusted p-values (as in Figure 7) are in
+#      results/revision/fga_baseline/survival_cox.csv and in the text.
 # Panel c (classifiers) is added once the classification without purity
 # (Reviewer 2, comment 1) is available.
 #
@@ -61,9 +60,6 @@ f$model <- factor(models[f$model], models)
 f$framework <- factor(f$framework, frameworks)
 f$row <- factor(paste(f$framework, f$endpoint), rev(paste(rep(frameworks, each = 2), c("OS", "PFI"))))
 f$hr_text <- sprintf("%.2f (%.2f-%.2f)", f$hr, f$lower, f$upper)
-without <- f[f$model == "Without FGA", ]
-f$reduction <- 1 - log(f$hr) / log(without$hr[match(f$row, without$row)])
-f$reduction_text <- ifelse(f$model == "With FGA", sprintf("%.0f%%", 100 * f$reduction), "")
 dodge <- c(`Without FGA` = .17, `With FGA` = -.17)
 f$y <- as.numeric(f$row) + dodge[as.character(f$model)]
 forest <- ggplot(f, aes(hr, y)) +
@@ -80,9 +76,7 @@ forest <- ggplot(f, aes(hr, y)) +
                     legend.box.spacing = unit(0, "pt"))
 table_b <- ggplot(f, aes(y = y)) +
   geom_text(aes(x = 0, label = hr_text), hjust = 0, size = 2) +
-  geom_text(aes(x = .55, label = reduction_text), hjust = 0, size = 2) +
-  annotate("text", x = c(0, .55), y = length(levels(f$row)) + .65,
-           label = c("HR (95% CI)", "log HR reduction"),
+  annotate("text", x = 0, y = length(levels(f$row)) + .65, label = "HR (95% CI)",
            hjust = 0, size = 2, fontface = "bold") +
   scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
   scale_y_continuous(limits = range(f$y) + c(-.5, .9), expand = c(0, 0)) +
@@ -90,7 +84,7 @@ table_b <- ggplot(f, aes(y = y)) +
 forest <- forest + coord_cartesian(xlim = c(.5, 1.2), ylim = range(f$y) + c(-.5, .9), expand = FALSE)
 
 figure <- panel_a + labs(tag = "a") + forest + labs(tag = "b") + table_b +
-  plot_layout(design = "AA\nBC", heights = c(1, 1), widths = c(.62, .38))
+  plot_layout(design = "AA\nBC", heights = c(1, 1), widths = c(.78, .22))
 size <- c(width = 6.8, height = 5.2)
 ggsave(file.path(out, "Supplementary_Figure9.png"), figure, width = size[["width"]],
        height = size[["height"]], dpi = 600, bg = "white")
