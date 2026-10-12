@@ -16,6 +16,8 @@
 #           expression_only: the same fixed parameters and saved splits with
 #           the archived gene expression predictors only (manuscript
 #           comparison of expression-only classifiers).
+#           archived_no_purity: the same with the archived predictors except
+#           tumour purity (R2: purity is an ASCAT, copy-number-derived estimate).
 #           Optional variants for the later R2 comments run on the same saved
 #           splits: training_fold, training_fold_no_purity, scalar_baseline
 #           (not part of the R1 run; scalar source still to be decided).
@@ -77,7 +79,7 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   variants <- "archived"
   if (!is.null(opt$variants)) {
     variants <- strsplit(opt$variants, ",")[[1]]
-    if (any(!variants %in% c("archived", "expression_only", "training_fold",
+    if (any(!variants %in% c("archived", "expression_only", "archived_no_purity", "training_fold",
                              "training_fold_no_purity", "scalar_baseline"))) {
       stop("Unknown variant.")
     }
@@ -130,6 +132,9 @@ run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
   if ("archived" %in% variants) run_variant("archived", prepared, "archived_final")
   if ("expression_only" %in% variants) {
     run_variant("expression_only", pi_keep_feature_types(prepared, "expression"), "archived_final")
+  }
+  if ("archived_no_purity" %in% variants) {
+    run_variant("archived_no_purity", pi_drop_features(prepared, "purity"), "archived_final")
   }
   if ("scalar_baseline" %in% variants) {
     scalar <- pi_scalar_baseline(prepared, ascat_path)
