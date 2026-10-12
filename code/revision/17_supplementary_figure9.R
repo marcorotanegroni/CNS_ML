@@ -4,7 +4,9 @@
 #      explained by the clusters (R2) and by the clusters beyond cancer type.
 #   b  Cluster 2 vs Cluster 1 hazard ratios of the Figure 7 Cox models, on the
 #      patients with an FGA value, without FGA and with FGA (penalized spline),
-#      with Holm-adjusted p-values as in Figure 7.
+#      and the share of the log hazard ratio removed by adding FGA
+#      (1 - log HR with FGA / log HR without FGA). The Holm-adjusted p-values
+#      (as in Figure 7) are in results/revision/fga_baseline/survival_cox.csv.
 # Panel c (classifiers) is added once the classification without purity
 # (Reviewer 2, comment 1) is available.
 #
@@ -58,9 +60,10 @@ f <- cox[cox$term == "cluster2" & cox$model %in% names(models), ]
 f$model <- factor(models[f$model], models)
 f$framework <- factor(f$framework, frameworks)
 f$row <- factor(paste(f$framework, f$endpoint), rev(paste(rep(frameworks, each = 2), c("OS", "PFI"))))
-holm <- function(p) ifelse(p < .001, "<0.001", ifelse(p >= .995, "1", formatC(signif(p, 2), format = "fg")))
 f$hr_text <- sprintf("%.2f (%.2f-%.2f)", f$hr, f$lower, f$upper)
-f$p_text <- holm(f$p_holm)
+without <- f[f$model == "Without FGA", ]
+f$reduction <- 1 - log(f$hr) / log(without$hr[match(f$row, without$row)])
+f$reduction_text <- ifelse(f$model == "With FGA", sprintf("%.0f%%", 100 * f$reduction), "")
 dodge <- c(`Without FGA` = .17, `With FGA` = -.17)
 f$y <- as.numeric(f$row) + dodge[as.character(f$model)]
 forest <- ggplot(f, aes(hr, y)) +
@@ -77,8 +80,9 @@ forest <- ggplot(f, aes(hr, y)) +
                     legend.box.spacing = unit(0, "pt"))
 table_b <- ggplot(f, aes(y = y)) +
   geom_text(aes(x = 0, label = hr_text), hjust = 0, size = 2) +
-  geom_text(aes(x = .5, label = p_text), hjust = 0, size = 2) +
-  annotate("text", x = c(0, .5), y = length(levels(f$row)) + .65, label = c("HR (95% CI)", "Holm p"),
+  geom_text(aes(x = .55, label = reduction_text), hjust = 0, size = 2) +
+  annotate("text", x = c(0, .55), y = length(levels(f$row)) + .65,
+           label = c("HR (95% CI)", "log HR reduction"),
            hjust = 0, size = 2, fontface = "bold") +
   scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
   scale_y_continuous(limits = range(f$y) + c(-.5, .9), expand = c(0, 0)) +
