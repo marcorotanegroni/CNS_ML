@@ -6,10 +6,13 @@
 #      patients with an FGA value, without FGA and with FGA (penalized spline),
 #      with their 95% CIs. The Holm-adjusted p-values (as in Figure 7) are in
 #      results/revision/fga_baseline/survival_cox.csv and in the text.
-# Panel c (classifiers) is added once the classification without purity
-# (Reviewer 2, comment 1) is available.
+#   c  Balanced accuracy of the Cluster 1 vs Cluster 2 classifiers: the
+#      multi-omic models of Figure 8, the same without tumour purity (Reviewer
+#      2, comment 1) and FGA alone, on the same patients and splits. Diamonds:
+#      original split with 95% bootstrap interval; points: 20 repeated splits.
 #
-# Run from the repository root after 15_fga_survival.R and 16_fga_clustering.R:
+# Run from the repository root after 14_fga_prediction.R, 15_fga_survival.R,
+# 16_fga_clustering.R and the archived_no_purity prediction variant:
 #   Rscript code/revision/17_supplementary_figure9.R
 # Output: results/revision/supplementary_figure9/
 
@@ -83,9 +86,43 @@ table_b <- ggplot(f, aes(y = y)) +
   theme_void()
 forest <- forest + coord_cartesian(xlim = c(.5, 1.2), ylim = range(f$y) + c(-.5, .9), expand = FALSE)
 
-figure <- panel_a + labs(tag = "a") + forest + labs(tag = "b") + table_b +
-  plot_layout(design = "AA\nBC", heights = c(1, 1), widths = c(.78, .22))
-size <- c(width = 6.8, height = 5.2)
+# Panel c: balanced accuracy (mean of the Cluster 1 and Cluster 2 recall).
+variants <- c(archived = "Multi-omic", archived_no_purity = "Multi-omic\nwithout purity",
+              fga_baseline = "FGA only")
+balanced <- function(x) (x$tp / (x$tp + x$fn) + x$tn / (x$tn + x$fp)) / 2
+acc <- do.call(rbind, lapply(names(variants), function(v) do.call(rbind, lapply(frameworks, function(fw) {
+  dir <- file.path("results/revision/prediction/fixed", v, fw)
+  m <- utils::read.csv(file.path(dir, "split_metrics.csv"), colClasses = c(split_id = "character"))
+  b <- utils::read.csv(file.path(dir, "bootstrap.csv"), colClasses = c(split_id = "character"))
+  ci <- stats::quantile(balanced(b[b$split_id == "0", ]), c(.025, .975), names = FALSE)
+  data.frame(framework = fw, model = variants[[v]], split_id = m$split_id,
+             balanced_accuracy = balanced(m), lower = ci[1], upper = ci[2])
+}))))
+acc$framework <- factor(acc$framework, frameworks)
+acc$row <- match(acc$model, rev(variants))
+original <- acc[acc$split_id == "0", ]; repeated <- acc[acc$split_id != "0", ]
+point_lab <- "Repeated splits (n = 20)"; diamond_lab <- "Original split, 95% CI"
+panel_c <- ggplot() +
+  geom_point(data = repeated, aes(balanced_accuracy, row - .15, colour = framework, shape = point_lab),
+             position = position_jitter(width = 0, height = .07, seed = 42), size = .85, alpha = .65) +
+  geom_errorbar(data = original, aes(xmin = lower, xmax = upper, y = row + .15, colour = framework),
+                orientation = "y", width = .1, linewidth = .35) +
+  geom_point(data = original, aes(balanced_accuracy, row + .15, colour = framework, shape = diamond_lab),
+             fill = "white", size = 1.65, stroke = .4) +
+  facet_wrap(~framework) +
+  scale_colour_manual(values = colours, guide = "none") +
+  scale_shape_manual(name = NULL, breaks = c(point_lab, diamond_lab),
+                     values = setNames(c(16, 23), c(point_lab, diamond_lab))) +
+  scale_y_continuous(breaks = seq_along(variants), labels = rev(variants)) +
+  scale_x_continuous(breaks = seq(.6, .9, .1)) +
+  coord_cartesian(xlim = c(.5, .9), ylim = c(.6, 3.4)) +
+  labs(x = "Test-set balanced accuracy, Cluster 1 vs Cluster 2", y = NULL) +
+  fig_theme + theme(panel.grid.major.y = element_blank(), legend.position = "top",
+                    legend.margin = margin(0, 0, 2, 0), panel.spacing = unit(8, "pt"))
+
+figure <- panel_a + labs(tag = "a") + forest + labs(tag = "b") + table_b + panel_c + labs(tag = "c") +
+  plot_layout(design = "AA\nBC\nDD", heights = c(1, 1, .7), widths = c(.78, .22))
+size <- c(width = 6.8, height = 7.6)
 ggsave(file.path(out, "Supplementary_Figure9.png"), figure, width = size[["width"]],
        height = size[["height"]], dpi = 600, bg = "white")
 ggsave(file.path(out, "Supplementary_Figure9.pdf"), figure, width = size[["width"]],
