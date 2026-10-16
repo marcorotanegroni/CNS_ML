@@ -1,0 +1,108 @@
+#!/bin/bash
+# Submit the Cluster 1 versus Cluster 2 classifiers (notebook 04) to SLURM.
+# Run from the repository root, e.g.:
+#   NODES="node1:64:62 node2:40:99" MAIN_NODE=node3 bash code/scripts/slurm_submit_cluster_prediction.sh
+#
+# Each inner-CV fold of each tuning is a separate job, checkpointed on
+# completion; an assembly job then selects the configuration from the saved
+# folds. Per framework:
+#   tune0 folds 1-10 -> assemble0 -> evaluation (split 0 + 20 repeated splits,
+#                                       predictor sets in VARIANTS)
+#   tune1 folds 1-10 -> assemble1   (check tuning on split 1)
+# Split-0 fold jobs are submitted first, longest framework first. A final
+# report job waits for everything. Resubmitting skips completed folds/splits.
+#
+# Options (environment variables):
+#   NODES       "name:cores[:memGB] ..." pins jobs to these nodes, in proportion
+#               to their cores; the optional memGB is the memory per fold job
+#               on that node (default: SLURM chooses nodes, MEM per job)
+#   CPUS        CPUs per fold job (default 8); MEM memory per job (default 24gb)
+#   CPUS_EVAL   CPUs for each evaluation job (default 16)
+#   MAIN_NODE   node for assembly, evaluation and report jobs (default: any);
+#               use a node not listed in NODES so they never wait for folds
+#   FRAMEWORKS  subset, e.g. "Tao" (default "Tao Steele Drews")
+#   VARIANTS    predictor sets to evaluate (default
+#               "multiomic,expression_only,multiomic_no_purity,training_fold")
+#   MAIL        address for end/failure e-mails
+# The FGA-only classifiers (code/scripts/fga_prediction.R) run in minutes and
+# are not submitted here.
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+mkdir -p logs
+FRAMEWORKS=${FRAMEWORKS:-"Tao Steele Drews"}
+CPUS=${CPUS:-8}; MEM=${MEM:-24gb}; CPUS_EVAL=${CPUS_EVAL:-16}; FOLDS=10
+VARIANTS=${VARIANTS:-"multiomic,expression_only,multiomic_no_purity,training_fold"}
+job="code/scripts/slurm_cluster_prediction_job.slurm"
+mail=(); if [ -n "${MAIL:-}" ]; then mail=(--mail-type=FAIL --mail-user="$MAIL"); fi
+
+# Node sequence: each node appears once per slot (cores / CPUS), interleaved,
+# so consecutive jobs are spread across nodes in proportion to their size.
+slots=(); slot_mem=()
+if [ -n "${NODES:-}" ]; then
+  while read -r name mem; do slots+=("$name"); slot_mem+=("$mem"); done < <(
+    for spec in $NODES; do echo "$spec"; done | awk -F: -v cpus="$CPUS" -v mem="$MEM" '{
+      n = int($2 / cpus); if (n < 1) n = 1
+      m = ($3 != "") ? $3 "gb" : mem
+      for (i = 0; i < n; i++) printf "%.6f %s %s\n", (i + 0.5) / n, $1, m }' |
+      sort -n | awk '{print $2, $3}')
+fi
+next=0
+node_opt() {  # sets "node" (nodelist option) and "job_mem" for the next slot
+  node=(); job_mem=$MEM
+  if [ ${#slots[@]} -gt 0 ]; then
+    node=(--nodelist="${slots[$next]}"); job_mem=${slot_mem[$next]}
+    next=$(( (next + 1) % ${#slots[@]} ))
+  fi
+}
+# Assembly, evaluation and report jobs are not tied to the fold nodes: pinned
+# to a node full of fold jobs they would wait for hours. MAIN_NODE pins them
+# to a node kept free for them; otherwise SLURM chooses any node.
+main_node=(); main_mem=$MEM
+if [ -n "${MAIN_NODE:-}" ]; then main_node=(--nodelist="$MAIN_NODE"); fi
+# A job whose dependency can no longer be satisfied (e.g. a failed fold) is
+# cancelled instead of waiting forever; resubmitting resumes from checkpoints.
+dep_kill=(--kill-on-invalid-dep=yes)
+
+submit_folds() {  # $1 framework, $2 tuning split -> sets fold_ids (colon-joined)
+  # Runs in the current shell (not $(...)) so the node counter advances.
+  local f=$1 split=$2 k id ids=()
+  for k in $(seq 1 $FOLDS); do
+    node_opt
+    id=$(sbatch --parsable --cpus-per-task="$CPUS" --mem="$job_mem" ${node[@]+"${node[@]}"} ${mail[@]+"${mail[@]}"} \
+      --job-name="tune${split}_${f}_f$k" "$job" --framework "$f" --step tune \
+      --tune_split "$split" --folds "$k")
+    ids+=("$id")
+  done
+  fold_ids=$(IFS=:; echo "${ids[*]}")
+}
+
+waits=()
+assemble0=()
+for f in $FRAMEWORKS; do
+  submit_folds "$f" 0; folds=$fold_ids
+  a=$(sbatch --parsable --cpus-per-task=2 --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} "${dep_kill[@]}" \
+    --job-name="assemble0_$f" --dependency="afterok:$folds" "$job" --framework "$f" --step tune)
+  assemble0+=("$a")
+  echo "$f: split-0 fold jobs $folds; assembly $a"
+done
+i=0
+for f in $FRAMEWORKS; do
+  e=$(sbatch --parsable --cpus-per-task="$CPUS_EVAL" --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} "${dep_kill[@]}" \
+    --job-name="eval_$f" --dependency="afterok:${assemble0[$i]}" "$job" --framework "$f" --step evaluate \
+    --variants "$VARIANTS")
+  echo "$f: evaluation $e (after ${assemble0[$i]})"
+  waits+=("$e"); i=$((i + 1))
+done
+for f in $FRAMEWORKS; do
+  submit_folds "$f" 1; folds=$fold_ids
+  a=$(sbatch --parsable --cpus-per-task=2 --mem="$main_mem" ${main_node[@]+"${main_node[@]}"} ${mail[@]+"${mail[@]}"} "${dep_kill[@]}" \
+    --job-name="assemble1_$f" --dependency="afterok:$folds" "$job" --framework "$f" \
+    --step tune --tune_split 1)
+  echo "$f: split-1 fold jobs $folds; assembly $a"
+  waits+=("$a")
+done
+deps=$(IFS=:; echo "${waits[*]}")
+report=$(sbatch --parsable --cpus-per-task=1 --mem=8gb ${main_node[@]+"${main_node[@]}"} "${dep_kill[@]}" --job-name=report \
+  --dependency="afterany:$deps" "$job" --step report)
+echo "report $report (after all evaluations and split-1 assemblies)"
+echo "Check with: squeue -u \$USER ; logs in logs/slurm_*.out"

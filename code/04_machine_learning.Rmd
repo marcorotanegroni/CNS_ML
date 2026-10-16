@@ -246,255 +246,98 @@ metrics_df.to_csv('../Results/name.csv', index = False)
 
 # Cluster prediction
 
-The same XGBoost workflow described above was applied to predict binary cluster
-membership using the final Drew, Steele, and Tao training and test datasets.
-The outcome variable was Cluster 1 versus Cluster 2.
+Binary classifiers predicted Cluster 1 versus Cluster 2 of each compendium from
+the final Drews, Steele, and Tao multi-omic matrices, with the XGBoost workflow
+described above (Figure 8). The three classifiers predict different,
+framework-specific partitions: identically numbered clusters do not represent a
+common biological label, and the Cluster 1 F1 depends on the proportion of
+Cluster 1 in each cohort. Cluster 1 is the positive class.
 
-## Performance extraction
-```{r, eval=FALSE}
-testX<-ordi_test[,-c(1,2)]
-predictions <- extractPrediction(
-  list(xgb_drew_cluster_2C),
-  testX,
-  ordi_test$cluster
-)
+The workflow is implemented as R functions in `code/R/` and run from the
+command line, because fitting the classifiers takes several hours:
 
-# Split by model and dataType
-grouped_preds <- predictions %>%
-  group_split(model, dataType)
+| File | Content |
+| --- | --- |
+| `code/R/prediction_inputs.R` | Predictors from `final_matrices.RData` and labels from the saved cluster fits |
+| `code/R/prediction_resampling.R` | Original split (seed 1234, as in notebook `00`), 20 repeated cancer-type-stratified 80/20 splits, bootstrap intervals |
+| `code/R/prediction_training.R` | Tuning, fitting and evaluation of the XGBoost classifiers |
+| `code/scripts/cluster_prediction.R` | Command-line entry point (tuning, evaluation, summary tables) |
+| `code/scripts/run_cluster_prediction.sh` | Complete workflow on a workstation |
 
-# Loop over each group and apply confusionMatrix
-results <- lapply(grouped_preds, function(df) {
-  cm <- confusionMatrix(df$pred, df$obs)
-  data.frame(
-    model = unique(df$model),
-    dataType = unique(df$dataType),
-    Accuracy = cm$overall["Accuracy"],
-    Kappa = cm$overall["Kappa"],
-    F1_score = cm$byClass["F1"]
-    # You can also extract class-wise metrics if needed
-  )
-})
+Cluster labels are taken from the saved fits `mc_drew_active_4`,
+`mc_steele_active_4`, and `mc_tao_active_4` in
+`data/processed/clustering_data.RData`, matched by TCGA barcode, as in notebooks
+`02` and `03`.
 
-# Combine results
-bind_rows(results)
+Hyperparameters were selected by 10-fold cross-validation on the training set
+of the original split, with the grid above, and held fixed. The classifiers
+were then refitted and evaluated on the original split and on 20 additional
+cancer-type-stratified 80/20 splits. For the original split, the 95%
+confidence interval of the test-set F1 is a percentile bootstrap with 2,000
+resamples of test patients within cancer type. The same splits and
+hyperparameters were used for four predictor sets:
+
+- `multiomic`: all predictors of the final matrices (Figure 8);
+- `expression_only`: gene expression predictors only;
+- `multiomic_no_purity`: all predictors except tumor purity;
+- `training_fold`: the expression and methylation filters of notebook `00`
+  refitted on the training set of each split.
+
+Run from the repository root, with `final_matrices.RData` (and, for
+`training_fold`, `exp_meth_post_normalization.RData`) in
+`data/processed/zenodo/`:
+
+```bash
+THREADS=4 bash code/scripts/run_cluster_prediction.sh
 ```
 
-# Accuracy by tumor type
+Synthetic checks of the workflow:
 
-The following example generates Figure 8 from the test-set predictions of the
-binary cluster classifiers. Tumor-specific accuracy is shown for tumor types
-represented by at least four test samples.
-```{r, eval=FALSE}
-plot_accuracy_per_tumor <- function(grouped_preds, title_suffix = "") {
-  results <- data.frame()
-  
-  for (df in grouped_preds) {
-    mod <- unique(df$model)
-    dt <- unique(df$dataType)
-    
-    cm_total <- confusionMatrix(df$pred, df$obs)
-    acc_total <- cm_total$overall["Accuracy"]
-    n_total <- nrow(df)
-    
-    results <- rbind(results, data.frame(
-      Model = mod,
-      DataType = dt,
-      Tumor = "Overall",
-      Accuracy = acc_total,
-      Samples = n_total,
-      alpha = 1
-    ))
-    
-    for (tum in unique(df$cancer_type[!is.na(df$cancer_type)])) {
-      df_sub <- df %>% filter(cancer_type == tum)
-      n_samples <- nrow(df_sub)
-      if (n_samples >= 4) {
-        cm_tum <- confusionMatrix(df_sub$pred, df_sub$obs)
-        acc_tum <- cm_tum$overall["Accuracy"]
-        
-        results <- rbind(results, data.frame(
-          Model = mod,
-          DataType = dt,
-          Tumor = tum,
-          Accuracy = acc_tum,
-          Samples = n_samples,
-          alpha = 0.5
-        ))
-      }
-    }
-  }
-  
-  results_plot <- results %>% filter(DataType == "Test")
-  
-  results_plot$Tumor <- factor(results_plot$Tumor, levels = c(
-    "Overall",
-    results_plot %>%
-      filter(Tumor != "Overall") %>%
-      arrange(desc(Accuracy)) %>%
-      pull(Tumor)
-  ))
-  
-  base_color <- "#1f78b4"
-  
-  p <- ggplot(
-    results_plot,
-    aes(x = Tumor, y = Accuracy, fill = base_color, alpha = alpha)
-  ) +
-    geom_bar(stat = "identity") +
-    scale_fill_identity() +
-    scale_alpha_identity() +
-    labs(
-      x = NULL,
-      y = "Accuracy"
-    ) +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
-  print(p)
-}
+```bash
+Rscript code/tests/test_prediction_resampling.R
+Rscript code/tests/test_prediction_training.R
+Rscript code/tests/test_prediction_fixed.R
 ```
 
-# extraction example for drews
-```{r, eval=FALSE}
-load("model.RData")
+## Results
 
-testX <- ordi_test[,-c(1,2)]
-predictions_drew <- extractPrediction(
-  list(model),
-  testX,
-  ordi_test$cluster
-)
+The summary tables are in `results/cluster_prediction/`: test-set metrics of
+every split (`all_split_metrics.csv`), their summary across splits
+(`summary.csv`) and the check of the tuning on a second split
+(`tuning_comparison.csv`). Patient-level split assignments, predictions and
+bootstrap replicates are distributed through Zenodo.
 
-predictions_drew$cancer_type <- NA
-test_idx <- which(predictions_drew$dataType == "Test")
-if(length(test_idx) == nrow(ordi_test)) {
-  predictions_drew$cancer_type[test_idx] <- ordi_test$cancer_type
-} else {
-  stop("DREWs: Lunghezza non corrisponde!")
-}
-
-grouped_preds_drew <- predictions_drew %>%
-  group_split(model, dataType)
-drew_acc<-plot_accuracy_per_tumor(grouped_preds_drew, "(Drews)")
+```{r cluster-prediction-summary}
+summary_f1 <- read.csv("../results/cluster_prediction/summary.csv")
+knitr::kable(summary_f1[, c("variant", "framework", "prevalence_cluster1",
+                            "split0_f1", "split0_f1_lower", "split0_f1_upper",
+                            "median_f1", "f1_q025", "f1_q975",
+                            "median_balanced_accuracy")],
+             digits = 3)
 ```
 
-## Test sample counts
-```{r, eval=FALSE}
-get_counts <- function(preds, model_name) {
-  test_idx <- which(preds$dataType == "Test")
-  tumors <- preds$cancer_type[test_idx]
-  counts <- as.data.frame(table(tumors))
-  colnames(counts) <- c("Tumor", "Samples")
-  counts$Model <- model_name
-  counts
-}
+## Figure 8 and feature importance
 
-counts_drew <- get_counts(predictions_drew, "Drews")
-counts_steele <- get_counts(predictions_steele, "Steele")
-counts_tao <- get_counts(predictions_tao, "Tao")
+`code/scripts/figure8.R` draws Figure 8: overall and cancer-type-specific test
+accuracy on the original split (a-c), test-set sample counts (d), the
+predictors accounting for up to 80% of the cumulative gain by data type (e),
+and the Cluster 1 test-set F1 across splits (f). It writes the gain of every
+predictor to `results/cluster_prediction/feature_importance/`; when the fitted
+models are not available locally, it reads these tables.
 
-counts_all <- bind_rows(counts_drew, counts_steele, counts_tao)
-
-mean_counts <- counts_all %>%
-  group_by(Tumor) %>%
-  summarise(mean_samples = mean(Samples)) %>%
-  arrange(desc(mean_samples))
-
-counts_all$Tumor <- factor(
-  counts_all$Tumor,
-  levels = rev(mean_counts$Tumor)
-)
-
-a <- ggplot(
-  counts_all,
-  aes(x = Samples, y = Tumor, fill = Model, alpha = 0.9)
-) +
-  geom_bar(stat = "identity", position = "dodge") +
-  facet_wrap(~ Model, ncol = 3) +
-  labs(
-    x = "n° samples",
-    y = NULL
-  ) +
-  theme_minimal() +
-  theme(
-    strip.text = element_text(face = "bold"),
-    axis.text.y = element_text(size = 8)
-  ) +
-  scale_fill_manual(values = c(
-    "Drew" = "#1f78b4",
-    "Steele" = "#33a02c",
-    "Tao" = "#e31a1c"
-  )) +
-  guides(alpha = "none")
+```{r figure8, eval=FALSE}
+# Scripts run from the repository root.
+local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/figure8.R", local = new.env()) })
 ```
 
-## Figure 8
-```{r, eval=FALSE}
-list_accuracy<-list(drew_acc, steele_acc, tao_acc, a)
-ggarrange(plotlist = list_accuracy, labels = "auto")
+## Reactome enrichment
+
+`code/scripts/reactome_enrichment.R` tests Reactome over-representation among
+the gene-based predictors (expression and methylation features mapped to gene
+symbols) of each 80%-gain set with the STRING functional enrichment service
+(version 12.0, whole-genome background). Gene lists and results are in
+`results/cluster_prediction/reactome/`.
+
+```{r reactome}
+read.csv("../results/cluster_prediction/reactome/summary.csv")
 ```
-
-# Figure 9, panel A
-```{r}
-load("../data/processed/list_varImp_class_80perc.RData")
-
-aggregate_varImp <- function(results) {
-  combined_df <- data.frame()
-  
-  for (signature in names(results)) {
-    model_results <- results[[signature]]$top_var_metric
-    for (model_nm in names(model_results)) {
-      df <- as.data.frame(model_results[[model_nm]])
-      df$signature <- signature
-      df$class <- stringr::str_extract(model_nm, "class_[0-9]+")
-      combined_df <- rbind(combined_df, df)
-    }
-  }
-  
-  names(combined_df)[1] <- "omic"
-  combined_df$class <- factor(
-    combined_df$class,
-    levels = c("class_2", "class_4")
-  )
-  combined_df %>%
-    group_by(omic, signature, class) %>%
-    summarise(total_value = sum(Freq), .groups = "drop") %>%
-    mutate(
-      omic = factor(
-        omic,
-        levels = c("clin", "exp", "meth", "path_mut", "mut")
-      )
-    )
-}
-
-aggregated_results <- aggregate_varImp(results)
-
-plot_omic_distribution <- function(aggregated_df) {
-  aggregated_df <- aggregated_df %>%
-    filter(class == "class_2")
-  
-  ggplot(
-    aggregated_df,
-    aes(x = signature, y = omic, size = total_value, fill = omic)
-    ) +
-    geom_point(shape = 21, color = "black") +
-    scale_size_continuous(range = c(3, 15)) +
-    labs(
-      x = "Signature",
-      y = "Omic",
-      size = "Count of Variables"
-    ) +
-    theme_minimal() +
-    scale_fill_brewer(palette = "Set1")
-}
-
-c<-plot_omic_distribution(aggregated_results)
-c
-```
-
-# Input and output files
-
-The final repository inputs for this analysis will be the processed `.RData`
-files containing the final training and test sets for each target signature and
-the three cluster classifications.

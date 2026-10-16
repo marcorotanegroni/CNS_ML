@@ -134,6 +134,15 @@ surv_list_plot<- list(drew_OS$table, drew_PFI$table,
                  tao_OS$table, tao_PFI$table)
 ```
 
+Supplementary Figure 5 assembles these risk tables; `code/scripts/supplementary_figure5.R`
+writes it with the numbers at risk shown in each table
+(`results/survival/supplementary_figure5_numbers_at_risk.csv`).
+
+```{r supplementary-figure5, eval=FALSE}
+# Scripts run from the repository root.
+local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/supplementary_figure5.R", local = new.env()) })
+```
+
 # Stratified Cox analysis
 ```{r stratified-cox-function}
 run_stratified_cox <- function(df, cluster_vec, sig_vars, time_var, event_var, label) {

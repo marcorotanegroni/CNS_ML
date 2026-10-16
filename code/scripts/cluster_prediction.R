@@ -1,0 +1,242 @@
+# Cluster 1 versus Cluster 2 classifiers (Figure 8): tuning, evaluation on the
+# original train/test split and on 20 repeated splits, and summary tables.
+# Run from the repository root, one process per framework (they can run in
+# parallel); code/scripts/run_cluster_prediction.sh runs the whole workflow:
+#
+#   Rscript code/scripts/cluster_prediction.R --framework Drews --step tune --threads 4
+#   Rscript code/scripts/cluster_prediction.R --framework Drews --step evaluate --threads 4
+#   Rscript code/scripts/cluster_prediction.R --step report
+#
+# tune      10-fold CV with the grid of notebook 04 on the training part of the
+#           original split (split 0, seed 1234). --tune_split 1 repeats the
+#           tuning on the training part of split 1, to check that the selected
+#           configuration does not depend on the partition; evaluation always
+#           uses the split-0 configuration.
+# evaluate  fixed tuned parameters, split 0 + 20 repeated cancer-type-stratified
+#           80/20 splits. Variants (--variants, default multiomic):
+#             multiomic            all predictors of the final matrices;
+#             expression_only      gene expression predictors only;
+#             multiomic_no_purity  all predictors except tumor purity;
+#             training_fold        expression/methylation filters refitted on
+#                                  the training set of each split.
+# report    combine the completed variants into summary tables.
+#
+# Options: --variants a,b  --splits 0,1,2  --tune_split 0|1  --folds 1-5 (tune only
+# these inner folds; a later --step tune without --folds assembles them)
+# --tree_method hist|exact (default hist, set explicitly because the meaning of
+# "auto" depends on the XGBoost version)  --params eta=0.15,max_depth=2,...
+# (--params overrides tuning, for smoke tests only)  --out <dir>.
+# Completed splits are checkpointed; rerunning the same command resumes.
+# Inputs: final_matrices.RData (and, for training_fold,
+# exp_meth_post_normalization.RData) from Zenodo, in data/processed/zenodo/.
+# Outputs: results/cluster_prediction/
+
+pr_args <- function(args) {
+  out <- list(framework = NULL, step = NULL, threads = 2L, variants = NULL,
+              splits = NULL, params = NULL, out = NULL, tree_method = "hist",
+              tune_split = "0", folds = NULL)
+  i <- 1L
+  while (i <= length(args)) {
+    key <- sub("^--", "", args[i])
+    if (!key %in% names(out) || i == length(args)) stop("Unknown or incomplete option: ", args[i])
+    out[[key]] <- args[i + 1L]
+    i <- i + 2L
+  }
+  out$threads <- as.integer(out$threads)
+  out
+}
+
+run_cli <- function(args = commandArgs(trailingOnly = TRUE)) {
+  opt <- pr_args(args)
+  if (!opt$tree_method %in% c("auto", "exact", "hist", "approx")) stop("Invalid --tree_method.")
+  options(cnsml.xgb_tree_method = opt$tree_method)
+  project_dir <- normalizePath(".", mustWork = TRUE)
+  if (!file.exists(file.path(project_dir, "code/scripts/cluster_prediction.R"))) {
+    stop("Run from the repository root.")
+  }
+  for (file in c("prediction_resampling.R", "prediction_training.R", "prediction_inputs.R")) {
+    source(file.path(project_dir, "code/R", file))
+  }
+  root <- if (is.null(opt$out)) file.path(project_dir, "results/cluster_prediction") else opt$out
+  if (identical(opt$step, "report")) return(invisible(pr_report(root)))
+  if (is.null(opt$framework) || !opt$framework %in% c("Drews", "Steele", "Tao")) {
+    stop("--framework must be Drews, Steele or Tao.")
+  }
+  if (!opt$step %in% c("tune", "evaluate")) stop("--step must be tune, evaluate or report.")
+  pt_require_packages()
+  pt_check_xgboost()
+  framework <- opt$framework
+  # Zenodo inputs: data/processed/zenodo/ (as in the README) or repository root.
+  zenodo_file <- function(name) {
+    candidates <- file.path(project_dir, c("data/processed/zenodo", "."), name)
+    found <- candidates[file.exists(candidates)]
+    if (length(found)) found[1] else candidates[1]
+  }
+  final_path <- zenodo_file("final_matrices.RData")
+  normalized_path <- zenodo_file("exp_meth_post_normalization.RData")
+  cluster_path <- file.path(project_dir, "data/processed/clustering_data.RData")
+  variants <- "multiomic"
+  if (!is.null(opt$variants)) {
+    variants <- strsplit(opt$variants, ",")[[1]]
+    if (any(!variants %in% c("multiomic", "expression_only", "multiomic_no_purity",
+                             "training_fold"))) {
+      stop("Unknown variant.")
+    }
+  }
+
+  message("[", format(Sys.time()), "] Loading final matrices for ", framework)
+  inputs <- pi_load_inputs(final_path, cluster_path = cluster_path,
+                           output_dir = file.path(root, "inputs", framework),
+                           input_mode = "archived_final", frameworks = framework)
+  prepared <- pi_prepare_framework(inputs, framework)
+  rm(inputs); invisible(gc())
+  manifests <- pr_framework_manifests(prepared, file.path(root, "manifests", paste0(framework, ".csv")))
+  # Training patients of each split, taken before any --splits filtering:
+  # tuning and its provenance check always refer to the complete manifest.
+  all_manifests <- manifests
+  if (!is.null(opt$splits)) {
+    keep <- strsplit(opt$splits, ",")[[1]]
+    manifests <- manifests[manifests$split_id %in% keep, , drop = FALSE]
+  }
+
+  tuning_dir <- file.path(root, "tuning", framework)
+  if (opt$step == "tune") {
+    split <- opt$tune_split
+    if (!split %in% all_manifests$split_id) stop("Unknown --tune_split: ", split)
+    message("[", format(Sys.time()), "] One-off tuning on split ", split, " (", framework, ")")
+    folds <- if (is.null(opt$folds)) NULL else pr_parse_folds(opt$folds)
+    best <- pt_tune_once(prepared, all_manifests[all_manifests$split_id == split, ],
+                         file.path(tuning_dir, paste0("split_", split)),
+                         threads = opt$threads, only_folds = folds)
+    print(best)
+    return(invisible(best))
+  }
+
+  fixed <- if (!is.null(opt$params)) pr_parse_params(opt$params) else {
+    best_path <- file.path(tuning_dir, "split_0", "best_parameters.csv")
+    if (!file.exists(best_path)) stop("Run --step tune for ", framework, " first.")
+    pt_check_tuning(dirname(best_path),
+                    all_manifests$patient_id[all_manifests$split_id == "0" &
+                                               all_manifests$partition == "train"])
+    utils::read.csv(best_path)
+  }
+  fixed <- fixed[, names(pt_default_grid()), drop = FALSE]
+  run_variant <- function(variant, prepared, preprocessing) {
+    message("[", format(Sys.time()), "] ", framework, " / ", variant)
+    pt_run_prediction(prepared, framework, file.path(root, variant, framework),
+                      threads = opt$threads, preprocessing = preprocessing,
+                      manifests = manifests, fixed_parameters = fixed)
+    invisible(gc())
+  }
+  if ("multiomic" %in% variants) run_variant("multiomic", prepared, "archived_final")
+  if ("expression_only" %in% variants) {
+    run_variant("expression_only", pi_keep_feature_types(prepared, "expression"), "archived_final")
+  }
+  if ("multiomic_no_purity" %in% variants) {
+    run_variant("multiomic_no_purity", pi_drop_features(prepared, "purity"), "archived_final")
+  }
+  rm(prepared); invisible(gc())
+  if ("training_fold" %in% variants) {
+    message("[", format(Sys.time()), "] Loading pre-filter inputs for ", framework)
+    inputs <- pi_load_inputs(final_path, normalized_path, cluster_path,
+                             output_dir = file.path(root, "inputs_training_fold", framework),
+                             input_mode = "training_fold", frameworks = framework)
+    prepared <- pi_prepare_framework(inputs, framework)
+    rm(inputs); invisible(gc())
+    run_variant("training_fold", prepared, "training_fold")
+  }
+  message("[", format(Sys.time()), "] Done: ", framework)
+}
+
+# Split 0 (original seed-1234 partition) followed by 20 repeated splits.
+# Saved on first use and reused, so every variant sees identical partitions.
+pr_framework_manifests <- function(prepared, path, seeds = 20261001L + 0:19) {
+  original <- pr_original_split(prepared$archive_frame, prepared$patients$patient_id)
+  repeated <- pr_repeated_splits(prepared$patients, seeds)
+  manifests <- rbind(original, repeated[, names(original)])
+  manifests$split_id <- as.character(manifests$split_id)
+  if (file.exists(path)) {
+    saved <- utils::read.csv(path, colClasses = c(split_id = "character"))
+    if (!identical(saved$patient_id, manifests$patient_id) ||
+        !identical(saved$partition, manifests$partition)) {
+      stop("Saved split manifest differs from the reconstructed one: ", path)
+    }
+  } else {
+    # Atomic write: concurrent jobs for the same framework (e.g. tuning on
+    # split 0 and split 1) may reach this point together.
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    tmp <- tempfile(pattern = "manifest-", tmpdir = dirname(path), fileext = ".csv")
+    utils::write.csv(manifests, tmp, row.names = FALSE)
+    if (!file.rename(tmp, path)) stop("Could not save split manifest: ", path)
+  }
+  manifests
+}
+
+# "3" or "1,4" or "1-5" -> integer fold numbers.
+pr_parse_folds <- function(text) {
+  parts <- strsplit(strsplit(text, ",")[[1]], "-")
+  folds <- unlist(lapply(parts, function(p) {
+    p <- as.integer(p)
+    if (anyNA(p) || length(p) > 2L) stop("Invalid --folds: ", text)
+    if (length(p) == 2L) seq(p[1], p[2]) else p
+  }))
+  sort(unique(folds))
+}
+
+pr_parse_params <- function(text) {
+  values <- strsplit(strsplit(text, ",")[[1]], "=")
+  out <- pt_default_grid()[1L, , drop = FALSE]
+  for (v in values) {
+    if (!v[1] %in% names(out)) stop("Unknown parameter: ", v[1])
+    out[[v[1]]] <- as.numeric(v[2])
+  }
+  rownames(out) <- NULL
+  out
+}
+
+pr_report <- function(root) {
+  # Tuning check: configuration and CV surface on split 0 versus split 1.
+  tuned <- Sys.glob(file.path(root, "tuning", "*", "split_*", "cv_results.csv"))
+  if (length(tuned)) {
+    tuning <- do.call(rbind, lapply(tuned, function(f) {
+      cv <- utils::read.csv(f)
+      best <- cv[which.max(cv$mean_accuracy), ]
+      data.frame(framework = basename(dirname(dirname(f))), tuned_on = basename(dirname(f)),
+                 best[, c("nrounds", "eta", "max_depth", "min_child_weight", "mean_accuracy", "sd_accuracy")],
+                 min_mean_accuracy = min(cv$mean_accuracy),
+                 n_within_1sd_of_best = sum(cv$mean_accuracy >= best$mean_accuracy - best$sd_accuracy))
+    }))
+    utils::write.csv(tuning, file.path(root, "tuning_comparison.csv"), row.names = FALSE)
+    print(tuning, digits = 3)
+  }
+  files <- Sys.glob(file.path(root, "*", "*", "split_metrics.csv"))
+  if (!length(files)) stop("No completed variants under ", root)
+  metrics <- do.call(rbind, lapply(files, function(f) {
+    x <- utils::read.csv(f, colClasses = c(split_id = "character"))
+    cbind(variant = basename(dirname(dirname(f))), x)
+  }))
+  q <- function(v, p) unname(stats::quantile(v, p, na.rm = TRUE))
+  med <- function(v) stats::median(v, na.rm = TRUE)
+  rows <- split(metrics, list(metrics$variant, metrics$framework), drop = TRUE)
+  summary <- do.call(rbind, lapply(rows, function(x) {
+    s0 <- x[x$split_id == "0", ]; r <- x[x$split_id != "0", ]
+    data.frame(variant = x$variant[1], framework = x$framework[1],
+               prevalence_cluster1 = mean(x$prevalence_cluster1), trivial_f1 = mean(x$trivial_f1),
+               split0_f1 = if (nrow(s0)) s0$f1 else NA, split0_f1_lower = if (nrow(s0)) s0$f1_lower_95 else NA,
+               split0_f1_upper = if (nrow(s0)) s0$f1_upper_95 else NA,
+               n_repeated = nrow(r), median_f1 = med(r$f1),
+               f1_q025 = q(r$f1, .025), f1_q975 = q(r$f1, .975),
+               median_auroc = med(r$auroc), auroc_q025 = q(r$auroc, .025),
+               auroc_q975 = q(r$auroc, .975),
+               median_average_precision = med(r$average_precision),
+               median_mcc = med(r$mcc), n_undefined_mcc = sum(is.na(r$mcc)),
+               median_balanced_accuracy = med(r$balanced_accuracy))
+  }))
+  rownames(summary) <- NULL
+  utils::write.csv(metrics, file.path(root, "all_split_metrics.csv"), row.names = FALSE)
+  utils::write.csv(summary, file.path(root, "summary.csv"), row.names = FALSE)
+  print(summary, digits = 3)
+  invisible(summary)
+}
+
+if (sys.nframe() == 0L) run_cli()

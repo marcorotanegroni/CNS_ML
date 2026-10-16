@@ -159,6 +159,13 @@ un_tumor_finale<-ordinata[exp_INT, , drop = FALSE]
 
 # Expression and methylation filtering
 
+The positional Drews indices in the code below refer to an earlier layout of
+the expression and methylation matrix. The `ordinata` matrix distributed
+through Zenodo has 15,976 expression columns followed by 13,674 methylation
+columns; all retained omic predictors of the final Drews matrix (12,653
+expression and 9,227 methylation features) map to it. Do not apply the
+positional indices below to the distributed matrix.
+
 The pan-cancer expression and methylation matrices were first restricted to
 samples represented in the selected signature compendium. Features in the
 lowest 20% of the coefficient-of-variation distribution were removed

@@ -21,6 +21,16 @@ dependencies:
   - r-complexheatmap
   - r-clustree
   - r-ggpubr
+  - r-patchwork
+  - r-ggrepel
+  - r-gtable
+  - r-ragg
+  - r-magick
+  - r-complexupset
+  - r-ggvenndiagram
+  - r-digest
+  - r-httr
+  - r-jsonlite
   - r-data.table
   - r-readxl
   - r-openxlsx
