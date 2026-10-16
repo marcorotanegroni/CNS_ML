@@ -79,17 +79,19 @@ from the repository root.
 | `code/05_methylation_batch_effect.Rmd` | Methylation platform harmonization, batch-effect checks, and Supplementary Figure 6 |
 | `code/06_fraction_genome_altered.Rmd` | Fraction genome altered in the clustering, survival, and prediction analyses |
 
-| Figure or table | Code |
+| Figure | Code |
 | --- | --- |
+| Figure 1 | Study design (a) and literature-based mapping of the signatures (b); not generated from data |
+| Figure 2 | `code/01_signature_exploration.Rmd` |
+| Figure 3 | `code/01_signature_exploration.Rmd` |
 | Figure 4 | `code/01_signature_exploration.Rmd` |
 | Figure 5 | `code/02_clustering.Rmd`; publication file `code/scripts/figure5.R` |
-| Figures 6 and 7 | `code/03_survival_analysis.Rmd` |
-| Figure 8 | `code/scripts/cluster_prediction.R` (classifiers), `code/scripts/figure8.R` |
-| Supplementary Figure 3 | `code/scripts/supplementary_figure3.R` |
-| Supplementary Figure 5 | `code/scripts/supplementary_figure5.R` |
-| Supplementary Figures 7 and 8 | `code/R/binary_concordance.R` (run in notebook `01`) |
-| Supplementary Figure 9 | `code/scripts/fga_*.R`, `code/scripts/supplementary_figure9.R` |
-| Binary agreement for all signature pairs and thresholds | `results/binary_concordance/pair_metrics.csv`, `thresholds.csv` |
+| Figure 6 | `code/03_survival_analysis.Rmd` |
+| Figure 7 | `code/03_survival_analysis.Rmd` |
+| Figure 8 | `code/04_machine_learning.Rmd`: classifiers `code/scripts/cluster_prediction.R`, figure `code/scripts/figure8.R` |
+
+The binary agreement of all signature pairs under the four activity thresholds
+is in `results/binary_concordance/` (`pair_metrics.csv`, `thresholds.csv`).
 
 ### Cluster assignments
 
