@@ -3,7 +3,12 @@
 # Jaccard) and sensitivity to the activity threshold, on the matched tumors
 # with all three compendia (Supplementary Figures 7 and 8).
 # Source this file to define functions; run it with Rscript from the
-# repository root to write the outputs. No input objects are modified.
+# repository root to write the outputs (run_binary_concordance() in notebook 01):
+#   Rscript code/R/binary_concordance.R
+# Outputs: results/binary_concordance/ (tables, provenance.txt, and
+#          session_info.txt when run with Rscript) and
+#          results/figures/Supplementary_Figure7.* and Supplementary_Figure8.*
+# No input objects are modified.
 
 bc_high_activity_signatures <- function() {
   c("Sig1", "Sig2", "Sig5", "Sig7", "CX1", "CX2", "CX3", "CX5",
@@ -306,7 +311,7 @@ bc_plot_threshold_sensitivity <- function(pairs, ranks, rules,
 run_binary_concordance <- function(
     input_path = "data/processed/signature_exploration_data.RData",
     output_dir = "results/binary_concordance", figure_dir = "results/figures",
-    make_plots = TRUE) {
+    make_plots = TRUE, session_info = FALSE) {
   cohort <- bc_load_cohort(input_path)
   rules <- names(bc_rule_labels())
   analyses <- lapply(rules, function(rule)
@@ -399,7 +404,9 @@ run_binary_concordance <- function(
     "The selected 12 signatures reproduce Figure 4b; selection does not denote active-only agreement.",
     "Heatmap ordering uses complete-linkage clustering of Euclidean distances between original binary signature columns."),
     file.path(output_dir, "provenance.txt"))
-  writeLines(capture.output(sessionInfo()), file.path(output_dir, "session_info.txt"))
+  if (session_info) {
+    writeLines(capture.output(sessionInfo()), file.path(output_dir, "session_info.txt"))
+  }
   message("Binary concordance outputs: ", normalizePath(output_dir),
           " (", nrow(cohort$values), " patients; ", ncol(cohort$values),
           " signatures; ", length(rules), " rules).")
@@ -411,5 +418,5 @@ run_binary_concordance <- function(
 if (sys.nframe() == 0L) {
   args <- commandArgs(trailingOnly = TRUE)
   if (any(!args %in% "--no-plots")) stop("Usage: Rscript code/R/binary_concordance.R [--no-plots]")
-  run_binary_concordance(make_plots = !"--no-plots" %in% args)
+  run_binary_concordance(make_plots = !"--no-plots" %in% args, session_info = TRUE)
 }

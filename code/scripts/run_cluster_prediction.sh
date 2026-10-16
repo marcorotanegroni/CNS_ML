@@ -38,6 +38,6 @@ done
 wait
 # FGA-only classifiers on the same patients and splits (notebook 06).
 Rscript code/scripts/fga_prediction.R $FRAMEWORKS --threads "$THREADS" > logs/fga_prediction.log 2>&1
-echo "$(date '+%F %T') FGA-only classifiers finished (exit code $?)" >> logs/status.log
+rc=$?; echo "$(date '+%F %T') FGA-only classifiers finished (exit code $rc)" >> logs/status.log
 Rscript "$run" --step report > logs/report.log 2>&1
-echo "$(date '+%F %T') report written (exit code $?)" >> logs/status.log
+rc=$?; echo "$(date '+%F %T') report written (exit code $rc)" >> logs/status.log

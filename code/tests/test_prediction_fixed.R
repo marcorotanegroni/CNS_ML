@@ -112,7 +112,7 @@ best_pieces <- pt_tune_once(prepared, m0, pieces, grid = small_grid, inner_folds
 stopifnot(identical(best_whole, best_pieces),
           identical(read.csv(file.path(whole, "cv_results.csv")),
                     read.csv(file.path(pieces, "cv_results.csv"))))
-# Fold checkpoints record software and code; a legacy checkpoint without that
+# Fold checkpoints record software and code; a checkpoint without that
 # record is accepted, one from a different environment is refused.
 fold1 <- file.path(pieces, "checkpoints", "fold_01.rds")
 saved1 <- readRDS(fold1)
@@ -123,7 +123,7 @@ retune <- function() pt_inner_tune(prepared$x[train0_ids, ],
   prepared$feature_type, pt_validate_grid(small_grid), 3L, 1234L, 1L, "archived_final",
   checkpoint_dir = file.path(pieces, "checkpoints"), only_folds = 1L)
 invisible(retune())  # unchanged checkpoint is reused
-legacy1 <- saved1; legacy1$environment <- NULL; saveRDS(legacy1, fold1)
+nohash1 <- saved1; nohash1$environment <- NULL; saveRDS(nohash1, fold1)
 invisible(retune())
 changed1 <- saved1; changed1$environment$packages[["xgboost"]] <- "0.0.1"; saveRDS(changed1, fold1)
 stopifnot(inherits(try(retune(), silent = TRUE), "try-error"))
@@ -147,13 +147,13 @@ stopifnot(inherits(try(pt_tune_once(prepared, manifests[manifests$split_id == "0
                                                               manifests$partition == "train"],
                                        small_grid, 3L), silent = TRUE), "try-error"))
 options(cnsml.xgb_tree_method = old_method)
-# Notes written before hashes were recorded (current workstation run) pass the basic checks.
-legacy <- tempfile("legacy-tuning-"); dir.create(legacy)
+# Tuning notes without hashes pass the basic checks.
+nohash <- tempfile("nohash-tuning-"); dir.create(nohash)
 train0 <- manifests$patient_id[manifests$split_id == "0" & manifests$partition == "train"]
 writeLines(c(paste("Training patients:", length(train0)),
              "Inner folds: 10 ; seed: 1234 ; threads: 4 ; tree_method: auto"),
-           file.path(legacy, "tuning_notes.txt"))
-stopifnot(isTRUE(pt_check_tuning(legacy, train0)))
+           file.path(nohash, "tuning_notes.txt"))
+stopifnot(isTRUE(pt_check_tuning(nohash, train0)))
 file.copy(file.path(out), root, recursive = TRUE)
 dir.create(file.path(root, "multiomic"))
 file.rename(file.path(root, basename(out)), file.path(root, "multiomic", "synthetic"))

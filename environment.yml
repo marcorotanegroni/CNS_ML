@@ -1,4 +1,7 @@
 name: cns_ml
+# Versions used for the reported results: XGBoost 3.2 for the
+# multi-omic cluster classifiers and 1.7.5 for the FGA-only classifiers
+# (tree_method = "hist"). Package versions are not pinned here.
 channels:
   - conda-forge
   - bioconda

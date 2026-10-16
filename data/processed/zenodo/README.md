@@ -4,7 +4,7 @@ The following large processed files are distributed through the associated
 [Zenodo record](https://doi.org/10.5281/zenodo.20617051) and are not tracked
 by Git.
 
-The Zenodo record should use the Creative Commons Attribution 4.0
+The Zenodo record is released under the Creative Commons Attribution 4.0
 International license (CC BY 4.0). This applies to the authors' processed
 outputs and does not replace the access, reuse, or citation requirements of
 the underlying TCGA and third-party source data.

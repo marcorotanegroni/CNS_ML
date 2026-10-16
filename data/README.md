@@ -18,7 +18,7 @@ data/processed/
     └── exp_meth_post_normalization.RData
 ```
 
-Raw TCGA data and external source files should not be redistributed in this repository. If large processed files are stored outside Git, add the download link or accession information here.
+Raw TCGA data and external source files should not be redistributed in this repository.
 
 Original processed data produced for this project are released under CC BY
 4.0, subject to the third-party data conditions described in

@@ -1,6 +1,6 @@
 # Inputs of the cluster classifiers from the final matrices of the Zenodo
 # record (final_matrices.RData) and the saved cluster assignments.
-# Source defines functions only; load large files explicitly from the notebook.
+# Source defines functions only; code/scripts/cluster_prediction.R loads the files.
 # training_fold additionally uses the normalized pre-filter archive.
 
 pi_archive_spec <- function() {

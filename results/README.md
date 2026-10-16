@@ -65,8 +65,9 @@ and `evaluation_notes.txt`. The patient-level files `manifests.csv`,
 
 - `summary.csv`, `all_split_metrics.csv`: all predictor sets and compendia.
 - `tuning/`, `tuning_fga/`: cross-validation results of the hyperparameter
-  search; `tuning_comparison.csv`: the search repeated on the training set of
-  split 1.
+  search (the folds were computed as separate jobs; `tuning_notes.txt` records
+  the step that assembled them); `tuning_comparison.csv`: the search repeated
+  on the training set of split 1.
 - `inputs/`: input checksums and cohort sizes.
 - `feature_importance/`: gain of every predictor of the split-0 multi-omic
   classifiers and the counts of Figure 8e (`code/scripts/figure8.R`).

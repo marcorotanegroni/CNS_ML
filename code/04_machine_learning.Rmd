@@ -26,8 +26,8 @@ individual scripts differed mainly in the loaded input file, target column,
 saved object name, and output path.
 
 The training blocks are retained as executable templates but are not evaluated
-when the notebook is rendered because the serialized historical model objects
-are not distributed. After loading a matrix from `final_matrices.RData` and
+when the notebook is rendered because the fitted model objects are not
+distributed. After loading a matrix from `final_matrices.RData` and
 creating the stratified split documented in `00_data_preprocessing.Rmd`, users
 can run the relevant block for any target signature.
 

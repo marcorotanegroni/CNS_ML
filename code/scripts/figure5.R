@@ -8,7 +8,8 @@
 # share), assembled with ggarrange on an A4 landscape page (11.69 x 8.27 in)
 # with lowercase panel letters, "Clusters" above the first row of violins and
 # x-axis titles on the bottom row only. The page is written at 4080 px across
-# and labelled 600 dpi.
+# and labelled 600 dpi. The ggplot panels use the Verdana font; where it is
+# not installed, the graphics devices substitute another font.
 #
 # Run from the repository root:
 #   Rscript code/scripts/figure5.R

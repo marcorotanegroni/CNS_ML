@@ -317,7 +317,7 @@ pt_inner_tune <- function(x, truth, feature_type, grid, folds, seed, threads,
         stop("Fold checkpoint does not match the current data/settings: ", fold_path)
       }
       if (is.null(saved$environment)) {
-        message("  Fold checkpoint without software record (earlier version): ", basename(fold_path))
+        message("  Fold checkpoint without software record: ", basename(fold_path))
       } else if (!identical(saved$environment, environment)) {
         stop("Fold checkpoint was computed with different code or package versions: ", fold_path)
       }
