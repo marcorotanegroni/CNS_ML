@@ -129,7 +129,7 @@ Synthetic checks of the workflow are in `code/tests/`.
 Small processed inputs required by the notebooks are stored in
 `data/processed/` and described in [`data/README.md`](data/README.md). The
 large starting matrices are distributed through the associated
-[Zenodo record](https://doi.org/10.5281/zenodo.20617051):
+[Zenodo record](https://doi.org/10.5281/zenodo.20617050):
 
 - `final_matrices.RData` contains the final Drews, Steele, and Tao multi-omics
   matrices. These matrices allow users to recreate the train/test partitions
@@ -160,7 +160,7 @@ with the manuscript rather than duplicated in this repository.
 ## Citation
 
 The processed datasets are available from Zenodo:
-https://doi.org/10.5281/zenodo.20617051.
+https://doi.org/10.5281/zenodo.20617050.
 
 ## License
 

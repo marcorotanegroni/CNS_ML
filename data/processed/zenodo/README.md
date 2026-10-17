@@ -1,7 +1,7 @@
 # Zenodo files
 
 The following large processed files are distributed through the associated
-[Zenodo record](https://doi.org/10.5281/zenodo.20617051) and are not tracked
+[Zenodo record](https://doi.org/10.5281/zenodo.20617050) and are not tracked
 by Git.
 
 The Zenodo record is released under the Creative Commons Attribution 4.0
@@ -41,7 +41,7 @@ Patient-level files of the Cluster 1 versus Cluster 2 classifiers (notebook
 Predictor sets: `multiomic`, `expression_only`, `multiomic_no_purity`,
 `training_fold`, and `fga_only`.
 
-DOI: https://doi.org/10.5281/zenodo.20617051
+DOI: https://doi.org/10.5281/zenodo.20617050
 
 `code/R/prediction_inputs.R` verifies the checksums of the two `.RData` files:
 

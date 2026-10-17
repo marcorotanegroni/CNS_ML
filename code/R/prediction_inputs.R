@@ -47,7 +47,7 @@ pi_load_inputs <- function(final_path, normalized_path = NULL, cluster_path,
   hashes <- vapply(paths, function(p) unname(tools::md5sum(p)), "")
   if (hashes[["final_matrices"]] != spec$final_md5 ||
       (input_mode == "training_fold" && hashes[["normalized"]] != spec$normalized_md5)) {
-    stop("The matrices do not match Zenodo record 20617051. Check their provenance ",
+    stop("The matrices do not match Zenodo record 20617050. Check their provenance ",
          "and layout before using this archive-specific adapter.")
   }
   cenv <- new.env(parent = emptyenv())
