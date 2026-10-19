@@ -379,3 +379,47 @@ figure4<-ggarrange(
 
 figure4
 ```
+
+## Composition of binary agreement and threshold sensitivity
+
+The patient-state Jaccard of Figure 4 counts both concordant active and
+concordant inactive classifications, so shared inactivity can produce high
+values for sparse signatures. For every pair of signatures, `n11` and `n00`
+denote tumors active or inactive for both signatures, and `n10` and `n01`
+discordant tumors. Besides the patient-state Jaccard, we report the
+active-active and inactive-inactive shares of the observed agreements,
+`n11/(n11+n00)` and `n00/(n11+n00)`, and the active-state Jaccard
+`n11/(n11+n10+n01)` (Supplementary Figure 7). The pair table also lists the
+expected active-active counts under independence and Cohen's kappa for
+reference.
+
+The zero/median rule above uses each complete compendium as the threshold
+reference, before restriction to the matched tumors: for signatures with a
+positive median, exposures at or above the median are active; for signatures
+with a median of zero, any positive exposure is active. In a sensitivity
+analysis, the rule is replaced by the 25th, 50th, and 75th percentiles of the
+strictly positive exposures of each signature in its complete compendium, on
+the same 5,881 matched tumors. Stability is summarized by the rank of the pairs
+discussed in the text among the 48 cross-compendium pairs of the 12
+high-activity signatures (Supplementary Figure 8).
+
+```{r binary-concordance-sensitivity, message=FALSE}
+source("R/binary_concordance.R")
+binary_sensitivity <- run_binary_concordance(
+  input_path = "../data/processed/signature_exploration_data.RData",
+  output_dir = "../results/binary_concordance",
+  figure_dir = "../results/figures"
+)
+binary_sensitivity$principal_ranks
+```
+
+The tables (`pair_metrics.csv`, `thresholds.csv`, `principal_pairs.csv`,
+`principal_pair_ranks.csv`) are written to `results/binary_concordance/`. When
+no tumors agree, both agreement shares are undefined and recorded as `NA`; the
+patient-state Jaccard is zero.
+
+```{r binary-concordance-figures, out.width="100%"}
+knitr::include_graphics(file.path("../results/figures",
+  c("Supplementary_Figure7.png", "Supplementary_Figure8.png")))
+```
+

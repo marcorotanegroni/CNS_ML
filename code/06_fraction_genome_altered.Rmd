@@ -1,0 +1,138 @@
+---
+title: "Fraction genome altered"
+output: html_notebook
+---
+
+```{r setup, include = FALSE}
+# Paths are relative to the repository root.
+knitr::opts_knit$set(root.dir = "..")
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+# Scope
+
+This notebook compares the signature-based clusters with a scalar copy number
+measure, the fraction genome altered (FGA), in the clustering, survival, and
+prediction analyses (Supplementary Figure 9). It uses the same tumors, saved
+cluster fits, and train/test splits as notebooks `02`, `03`, and `04`.
+
+| Step | Script | Output |
+| --- | --- | --- |
+| FGA download | `code/scripts/fga_fetch.R` | `data/processed/fga_pancanatlas.csv` |
+| Clustering | `code/scripts/fga_clustering.R` | `results/fraction_genome_altered/clustering_fga_*.csv` |
+| Survival | `code/scripts/fga_survival.R` | `results/fraction_genome_altered/survival_cox.csv` |
+| Prediction | `code/scripts/fga_prediction.R` | `results/cluster_prediction/fga_only/` |
+| Supplementary Figure 9 | `code/scripts/supplementary_figure9.R` | `results/figures/Supplementary_Figure9.*` |
+
+The clustering and survival analyses run in a few seconds and are rerun here.
+The FGA download needs internet access, and the FGA-only classifiers are fitted
+by `code/scripts/run_cluster_prediction.sh` (notebook `04`); this notebook
+reads their results.
+
+```{r packages}
+library(ggplot2)
+frameworks <- c("Drews", "Steele", "Tao")
+```
+
+# FGA data
+
+FGA was taken from the TCGA PanCanAtlas studies in cBioPortal (sample attribute
+`FRACTION_GENOME_ALTERED`): the fraction of the measured genome in segments with
+an absolute segment mean of at least 0.2. One sample per patient was used: the
+primary tumor or, when no primary sample was available, the metastatic sample
+(365 patients, all skin cutaneous melanomas).
+
+```{r fga-data}
+fga_table <- read.csv("data/processed/fga_pancanatlas.csv")
+fga <- setNames(fga_table$fga, fga_table$patient)
+writeLines(readLines("data/processed/fga_pancanatlas_provenance.txt"))
+summary(fga)
+```
+
+```{r coverage}
+cl <- new.env(); load("data/processed/clustering_data.RData", envir = cl)
+sv <- new.env(); load("data/processed/surv_data.RData", envir = sv)
+fits <- c(Drews = "mc_drew_active_4", Steele = "mc_steele_active_4", Tao = "mc_tao_active_4")
+survs <- c(Drews = "drew_f", Steele = "steele_f", Tao = "tao_f")
+coverage <- do.call(rbind, lapply(frameworks, function(fw) {
+  ids <- names(cl[[fits[fw]]]$classification)
+  surv_ids <- rownames(sv[[survs[fw]]])
+  share <- function(x) sprintf("%d / %d (%.1f%%)", sum(!is.na(fga[x])), length(x),
+                               100 * mean(!is.na(fga[x])))
+  data.frame(framework = fw, clustered_tumors = share(ids), survival = share(surv_ids))
+}))
+knitr::kable(coverage)
+```
+
+# Clustering
+
+FGA by cluster, and the share of the variation in FGA explained by cluster
+membership: overall (R²) and after accounting for cancer type (partial R² of
+the cluster in `FGA ~ cancer_type + cluster`).
+
+```{r clustering}
+source("code/scripts/fga_clustering.R", local = new.env())
+by_cluster <- read.csv("results/fraction_genome_altered/clustering_fga_by_cluster.csv")
+variance <- read.csv("results/fraction_genome_altered/clustering_fga_variance.csv")
+knitr::kable(by_cluster, digits = 3)
+knitr::kable(variance, digits = 3)
+```
+
+# Survival
+
+The cancer-type-stratified Cox models of Figure 7 (cluster, age, and purity),
+fitted on the patients with an FGA value, without FGA (`figure7_fga_n`) and
+with FGA as a penalized spline with 4 degrees of freedom (`with_fga_spline`).
+A linear FGA term (`with_fga`) is given for comparison. Holm adjustment is
+applied across the cluster coefficients of the six models of each set, as for
+Figure 7. Patients without an FGA value are excluded from these models.
+
+```{r survival}
+source("code/scripts/fga_survival.R", local = new.env())
+cox <- read.csv("results/fraction_genome_altered/survival_cox.csv")
+cluster2 <- cox[cox$term == "cluster2" &
+                  cox$model %in% c("figure7", "figure7_fga_n", "with_fga_spline", "with_fga"), ]
+cluster2$hr_ci <- sprintf("%.2f (%.2f-%.2f)", cluster2$hr, cluster2$lower, cluster2$upper)
+knitr::kable(cluster2[, c("framework", "endpoint", "model", "n", "events", "hr_ci", "p", "p_holm")],
+             digits = 4, row.names = FALSE)
+knitr::kable(unique(cox[, c("framework", "endpoint", "fga_nonlinearity_p")]), row.names = FALSE,
+             caption = "Likelihood-ratio test of the spline against a linear FGA term")
+```
+
+# Prediction
+
+Cluster 1 versus Cluster 2 classifiers from FGA alone, with the same patients,
+splits, and tuning procedure as the multi-omic classifiers of notebook `04`.
+Patients without an FGA value are kept, with the missing value passed to
+XGBoost. Because the Cluster 1 F1 depends on class prevalence, the comparison
+uses the balanced accuracy, the mean of the recall of Cluster 1 and Cluster 2.
+
+```{r prediction}
+models <- c(multiomic = "Multi-omic", multiomic_no_purity = "Multi-omic without purity",
+            fga_only = "FGA only")
+balanced <- function(x) (x$tp / (x$tp + x$fn) + x$tn / (x$tn + x$fp)) / 2
+accuracy <- do.call(rbind, lapply(names(models), function(v) do.call(rbind, lapply(frameworks, function(fw) {
+  m <- read.csv(file.path("results/cluster_prediction", v, fw, "split_metrics.csv"),
+                colClasses = c(split_id = "character"))
+  data.frame(framework = fw, model = models[[v]],
+             split0_balanced_accuracy = balanced(m[m$split_id == "0", ]),
+             median_balanced_accuracy = median(balanced(m[m$split_id != "0", ])))
+}))))
+knitr::kable(accuracy, digits = 2, row.names = FALSE)
+```
+
+# Supplementary Figure 9
+
+Panels: (a) FGA by cluster with R² and partial R²; (b) Cluster 2 versus
+Cluster 1 hazard ratios without and with FGA; (c) balanced accuracy of the
+multi-omic, no-purity, and FGA-only classifiers. Panel c uses the bootstrap
+replicates of the original split, distributed through Zenodo with the other
+patient-level prediction files.
+
+```{r supplementary-figure9, eval=FALSE}
+source("code/scripts/supplementary_figure9.R", local = new.env())
+```
+
+```{r session}
+sessionInfo()
+```

@@ -1,0 +1,4 @@
+"framework","n_test","accuracy","predictors_80pct","purity_rank","purity_in_80pct"
+"Drews",567,0.885361552028219,250,NA,FALSE
+"Steele",868,0.811059907834101,2896,NA,FALSE
+"Tao",1219,0.83921246923708,948,1,TRUE

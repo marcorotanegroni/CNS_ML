@@ -120,9 +120,13 @@ create_violin_plot <- function(df_long, title = "") {
   # Create fill variable for mapping
   df_long$fill_var <- interaction(df_long$Variable, df_long$Group)
   
+  # A signature that is zero in every tumor of a cluster (Steele CN17 in
+  # Clusters 2 and 4) has no density to draw; only its mean is shown.
+  varying <- df_long %>% group_by(Variable, Group) %>% filter(sd(Value) > 0) %>% ungroup()
+
   # Create the plot
   ggplot(df_long, aes(x = Variable, y = Value, fill = fill_var)) +
-    geom_violin(trim = FALSE, scale = "width", color = "black", alpha = 0.8) +
+    geom_violin(data = varying, trim = FALSE, scale = "width", color = "black", alpha = 0.8) +
     scale_fill_manual(values = color_mapping) +
     stat_summary(fun = mean, geom = "point", shape = 21, fill = "black", size = 2.5) +
     stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, color = "black") +
@@ -236,3 +240,28 @@ plots_list<-list(drew_pheatmap$gtable, drew_violin, drew_barplot,
 ggarrange(plotlist = plots_list, labels = "AUTO", nrow = 3, ncol = 3,
           widths = c(0.6, 1.4, 1.2), heights = c(.9, 1, 1.1))
 ```
+
+The publication version of Figure 5 (A4 landscape page, 600 dpi) is written by
+`code/scripts/figure5.R` from the same saved fits, together with the cluster
+sizes and mean signature activities (`results/clustering/cluster_summary.csv`).
+
+```{r figure5-file, eval=FALSE}
+# Scripts run from the repository root.
+local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/figure5.R", local = new.env()) })
+```
+
+# Overlap of clusters across compendia
+
+Supplementary Figure 3 compares the cluster assignments of the tumors shared by
+the three compendia, restricted for each compendium to the tumors of its
+multi-omic predictor matrix: (a) all clusters, (b) Clusters 1 and 2, and (c)
+the Venn diagram of Cluster 2. It requires `final_matrices.RData` from Zenodo
+in `data/processed/zenodo/` and the `ComplexUpset` and `ggVennDiagram`
+packages; the counts shown in the panels are in
+`results/clustering/supplementary_figure3_counts.csv`.
+
+```{r supplementary-figure3, eval=FALSE}
+# Scripts run from the repository root.
+local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/supplementary_figure3.R", local = new.env()) })
+```
+

@@ -1,0 +1,27 @@
+# Large inputs distributed through Zenodo (any location).
+final_matrices.RData
+exp_meth_post_normalization.RData
+
+# Figure files written by the scripts (the final figures accompany the article).
+/results/figures/
+
+# Fitted models, caches and run bookkeeping of the cluster classifiers.
+/results/cluster_prediction/**/checkpoints/
+/results/cluster_prediction/**/cache/
+/results/cluster_prediction/**/run_manifest.rds
+/results/cluster_prediction/**/split_manifest.csv
+
+# Patient-level split assignments, predictions and bootstrap replicates:
+# distributed through Zenodo (cluster_prediction_patient_level.zip).
+/results/cluster_prediction/manifests/
+/results/cluster_prediction/*/*/manifests.csv
+/results/cluster_prediction/*/*/predictions.csv
+/results/cluster_prediction/*/*/bootstrap.csv
+
+# Run logs.
+/logs/
+
+# Knitting output.
+/code/figure/
+/code/*_files/
+*.nb.html

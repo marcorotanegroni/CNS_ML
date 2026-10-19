@@ -1,0 +1,6 @@
+Training patients: 3447
+Inner folds: 10 ; seed: 1234 ; threads: 2 ; tree_method: hist
+Started: 2026-10-07 17:52:07.280897 ; finished: 2026-10-07 17:52:08.275159
+Range of mean CV accuracy across the grid: 0.7787 - 0.7978
+Training IDs hash: 2b27c9f8697f3a32dfb8274c1fc8a4d8061016c449c2408faa6231396e06fd9d
+Grid hash: f94846902cda0c4737ad1bf9b4f0011a2d8bc66f23b6201207bbc6c7a45485cf
