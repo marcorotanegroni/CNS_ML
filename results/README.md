@@ -81,4 +81,5 @@ and `evaluation_notes.txt`. The patient-level files `manifests.csv`,
   cluster membership, overall and after accounting for cancer type.
 - `survival_cox.csv`: Cox models of Figure 7 on the patients with an FGA value,
   without and with FGA (penalized spline; linear term for comparison), with
-  Holm-adjusted P values.
+  Holm-adjusted P values and likelihood-ratio tests of FGA (`fga_lr_p`) and of
+  its non-linearity (`fga_nonlinearity_p`).

@@ -10,6 +10,8 @@
 #                 main model: the effect of FGA on the log hazard is clearly
 #                 non-linear, likelihood-ratio test against linear p < 1e-4 in
 #                 all six models, see fga_nonlinearity);
+#                 fga_lr_p is the likelihood-ratio test of FGA, i.e. of this
+#                 model against figure7_fga_n (same patients, without FGA);
 #   with_fga      the same with FGA linear (sensitivity analysis: the
 #                 conclusions on the clusters are the same with either form);
 #   fga_only      FGA (linear) + age + purity, without clusters.
@@ -71,10 +73,12 @@ for (fw in names(spec)) for (ep in c("OS", "PFI")) {
   f4 <- coxph(Surv(time, event) ~ cluster + pspline(fga10, df = 4) + age + purity +
                 strata(cancer_type), data = dn)
   nonlinear <- anova(f2, f4)[["Pr(>|Chi|)"]][2]
+  fga_lr <- anova(f1, f4)[["Pr(>|Chi|)"]][2]
   results[[paste(fw, ep)]] <- rbind(terms(f0, "figure7", fw, ep), terms(f1, "figure7_fga_n", fw, ep),
                                     terms(f4, "with_fga_spline", fw, ep),
                                     terms(f2, "with_fga", fw, ep), terms(f3, "fga_only", fw, ep))
   results[[paste(fw, ep)]]$fga_nonlinearity_p <- nonlinear
+  results[[paste(fw, ep)]]$fga_lr_p <- fga_lr
 }
 res <- do.call(rbind, results)
 res$p_holm <- NA_real_

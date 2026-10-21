@@ -95,8 +95,11 @@ cluster2 <- cox[cox$term == "cluster2" &
 cluster2$hr_ci <- sprintf("%.2f (%.2f-%.2f)", cluster2$hr, cluster2$lower, cluster2$upper)
 knitr::kable(cluster2[, c("framework", "endpoint", "model", "n", "events", "hr_ci", "p", "p_holm")],
              digits = 4, row.names = FALSE)
-knitr::kable(unique(cox[, c("framework", "endpoint", "fga_nonlinearity_p")]), row.names = FALSE,
-             caption = "Likelihood-ratio test of the spline against a linear FGA term")
+lr <- unique(cox[, c("framework", "endpoint", "fga_lr_p", "fga_nonlinearity_p")])
+lr[3:4] <- lapply(lr[3:4], format.pval, digits = 2)
+knitr::kable(lr, row.names = FALSE,
+             caption = paste("Likelihood-ratio tests of FGA (model with FGA against the same model",
+                             "without FGA) and of the spline against a linear FGA term"))
 ```
 
 # Prediction
