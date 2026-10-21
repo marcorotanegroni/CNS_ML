@@ -9,7 +9,7 @@ This notebook documents how the methylation batch effect was identified and
 corrected. TCGA methylation data generated with the Illumina
 HumanMethylation27 and HumanMethylation450 platforms were harmonized, and the
 effect of BMIQ normalization was assessed using probe-design distributions and
-the LAML platform comparison shown in Supplementary Figure 6.
+the LAML platform comparison shown in Supplementary Figure 2.
 
 LAML was the only tumor type for which the same 194 samples were profiled on
 both the 27K and 450K platforms. This paired setting allowed the platform
@@ -18,7 +18,7 @@ therefore reserved for this validation and was not included in the downstream
 harmonized methylation matrix.
 
 The complete normalization workflow is computationally intensive. The reduced
-checkpoint needed for Supplementary Figure 6 is included in `data/processed/`.
+checkpoint needed for Supplementary Figure 2 is included in `data/processed/`.
 
 # R packages
 
@@ -466,7 +466,7 @@ finale_meth <- merge_common_data(GS_27, GS_450)
 finale_meth <- finale_meth[order(names(finale_meth))]
 ```
 
-# Supplementary Figure 6
+# Supplementary Figure 2
 
 The reduced checkpoint contains only the normalized LAML 450K matrix and the
 raw LAML matrices from the 27K and 450K platforms. The PCA and beta-value

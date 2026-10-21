@@ -252,16 +252,16 @@ local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/figure5.R"
 
 # Overlap of clusters across compendia
 
-Supplementary Figure 3 compares the cluster assignments of the tumors shared by
+Supplementary Figure 6 compares the cluster assignments of the tumors shared by
 the three compendia, restricted for each compendium to the tumors of its
 multi-omic predictor matrix: (a) all clusters, (b) Clusters 1 and 2, and (c)
 the Venn diagram of Cluster 2. It requires `final_matrices.RData` from Zenodo
 in `data/processed/zenodo/` and the `ComplexUpset` and `ggVennDiagram`
 packages; the counts shown in the panels are in
-`results/clustering/supplementary_figure3_counts.csv`.
+`results/clustering/supplementary_figure6_counts.csv`.
 
-```{r supplementary-figure3, eval=FALSE}
+```{r supplementary-figure6, eval=FALSE}
 # Scripts run from the repository root.
-local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/supplementary_figure3.R", local = new.env()) })
+local({ owd <- setwd(".."); on.exit(setwd(owd)); source("code/scripts/supplementary_figure6.R", local = new.env()) })
 ```
 

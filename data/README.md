@@ -29,7 +29,7 @@ because they exceed the GitHub file-size limit. Their contents and dimensions
 are documented in `data/processed/zenodo/README.md`.
 
 `methylation_batch_effect_data.RData` contains only the three LAML matrices
-used to reproduce Supplementary Figure 6.
+used to reproduce Supplementary Figure 2.
 
 | File | Main contents | Used by |
 | --- | --- | --- |

@@ -1,4 +1,4 @@
-# Supplementary Figure 3: overlap of the signature-based clusters across
+# Supplementary Figure 6: overlap of the signature-based clusters across
 # compendia, from the saved cluster assignments (mc_*_active_4 in
 # data/processed/clustering_data.RData). Each compendium is restricted to the
 # tumours of its multi-omic predictor matrix (final_matrices.RData), and the
@@ -6,11 +6,11 @@
 # (b) Clusters 1 and 2, (c) Venn diagram of Cluster 2.
 #
 # Run from the repository root:
-#   Rscript code/scripts/supplementary_figure3.R
+#   Rscript code/scripts/supplementary_figure6.R
 # Requires ComplexUpset and ggVennDiagram (CRAN) and final_matrices.RData
 # (Zenodo; data/processed/zenodo/ or the repository root).
-# Outputs: results/figures/Supplementary_Figure3.{png,pdf} and
-#          results/clustering/supplementary_figure3_counts.csv
+# Outputs: results/figures/Supplementary_Figure6.{png,pdf} and
+#          results/clustering/supplementary_figure6_counts.csv
 
 suppressMessages({library(ggplot2); library(ComplexUpset); library(ggVennDiagram); library(ggpubr)})
 out <- "results/figures"; tables_out <- "results/clustering"
@@ -61,7 +61,7 @@ venn <- ggVennDiagram(c2_sets, label_alpha = 0, label = "count") +
 figure <- ggarrange(plotlist = list(upset_panel(all_sets), upset_panel(c12_sets), venn),
                     labels = "auto", heights = c(1.75, 1), nrow = 2, ncol = 2, vjust = 3)
 for (ext in c("png", "pdf")) {
-  args <- list(filename = file.path(out, paste0("Supplementary_Figure3.", ext)), plot = figure,
+  args <- list(filename = file.path(out, paste0("Supplementary_Figure6.", ext)), plot = figure,
                width = 13, height = 10, units = "in", bg = "white")
   if (ext == "png") args$dpi <- 300
   do.call(ggsave, args)
@@ -78,5 +78,5 @@ counts <- rbind(
   cbind(panel = "a", subset(distinct_counts(all_sets), n >= 50)),
   cbind(panel = "b", subset(distinct_counts(c12_sets), n >= 50)),
   cbind(panel = "c", distinct_counts(c2_sets)))
-utils::write.csv(counts, file.path(tables_out, "supplementary_figure3_counts.csv"), row.names = FALSE)
+utils::write.csv(counts, file.path(tables_out, "supplementary_figure6_counts.csv"), row.names = FALSE)
 print(table(counts$panel))

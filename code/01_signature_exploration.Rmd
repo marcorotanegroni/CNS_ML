@@ -5,7 +5,7 @@ output: html_notebook
 
 # Scope
 
-This notebook generates Figures 2-4 and Supplementary Figure 1. It compares
+This notebook generates Figures 2-4 and Supplementary Figure 3. It compares
 the distributions, principal components, and agreement of copy number
 signatures from the Drews, Steele, and Tao compendia.
 
@@ -154,7 +154,7 @@ figure2<-ggarrange(
 figure2
 ```
 
-# Figure 3 and Supplementary Figure 1
+# Figure 3 and Supplementary Figure 3
 ```{r}
 data4 <- list(
   Drews = cor(data[[1]][,-1]),
@@ -232,7 +232,7 @@ corr_plot <- ggarrange(
 corr_plot
 ```
 
-```{r supplementary-figure-1, fig.width=10, fig.height=12}
+```{r supplementary-figure-3, fig.width=10, fig.height=12}
 plot_list <- list()
 
 for (i in seq_along(data6)) {
@@ -389,7 +389,7 @@ denote tumors active or inactive for both signatures, and `n10` and `n01`
 discordant tumors. Besides the patient-state Jaccard, we report the
 active-active and inactive-inactive shares of the observed agreements,
 `n11/(n11+n00)` and `n00/(n11+n00)`, and the active-state Jaccard
-`n11/(n11+n10+n01)` (Supplementary Figure 7). The pair table also lists the
+`n11/(n11+n10+n01)` (Supplementary Figure 4). The pair table also lists the
 expected active-active counts under independence and Cohen's kappa for
 reference.
 
@@ -401,7 +401,7 @@ analysis, the rule is replaced by the 25th, 50th, and 75th percentiles of the
 strictly positive exposures of each signature in its complete compendium, on
 the same 5,881 matched tumors. Stability is summarized by the rank of the pairs
 discussed in the text among the 48 cross-compendium pairs of the 12
-high-activity signatures (Supplementary Figure 8).
+high-activity signatures (Supplementary Figure 5).
 
 ```{r binary-concordance-sensitivity, message=FALSE}
 source("R/binary_concordance.R")
@@ -420,6 +420,6 @@ patient-state Jaccard is zero.
 
 ```{r binary-concordance-figures, out.width="100%"}
 knitr::include_graphics(file.path("../results/figures",
-  c("Supplementary_Figure7.png", "Supplementary_Figure8.png")))
+  c("Supplementary_Figure4.png", "Supplementary_Figure5.png")))
 ```
 

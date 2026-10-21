@@ -1,10 +1,10 @@
-# Supplementary Figure 5: Kaplan-Meier risk tables of Figure 6, from the saved
+# Supplementary Figure 7: Kaplan-Meier risk tables of Figure 6, from the saved
 # cluster assignments with the steps of code/03_survival_analysis.Rmd.
 #
 # Run from the repository root:
-#   Rscript code/scripts/supplementary_figure5.R
-# Outputs: results/figures/Supplementary_Figure5.{png,pdf} and
-#          results/survival/supplementary_figure5_numbers_at_risk.csv
+#   Rscript code/scripts/supplementary_figure7.R
+# Outputs: results/figures/Supplementary_Figure7.{png,pdf} and
+#          results/survival/supplementary_figure7_numbers_at_risk.csv
 
 suppressMessages({library(survival); library(survminer); library(ggplot2); library(patchwork)})
 load("data/processed/surv_data.RData")
@@ -50,8 +50,8 @@ plots <- lapply(seq_along(tables), function(i) {
 })
 figure <- wrap_plots(plots, ncol = 2) + plot_annotation(tag_levels = "a") &
   theme(plot.tag = element_text(size = 12))
-ggsave(file.path(out, "Supplementary_Figure5.png"), figure, width = 6.8, height = 4.6, dpi = 600, bg = "white")
-ggsave(file.path(out, "Supplementary_Figure5.pdf"), figure, width = 6.8, height = 4.6)
+ggsave(file.path(out, "Supplementary_Figure7.png"), figure, width = 6.8, height = 4.6, dpi = 600, bg = "white")
+ggsave(file.path(out, "Supplementary_Figure7.pdf"), figure, width = 6.8, height = 4.6)
 numbers <- do.call(rbind, lapply(tables, `[[`, "numbers"))
-utils::write.csv(numbers, file.path(tables_out, "supplementary_figure5_numbers_at_risk.csv"), row.names = FALSE)
+utils::write.csv(numbers, file.path(tables_out, "supplementary_figure7_numbers_at_risk.csv"), row.names = FALSE)
 print(numbers[numbers$framework == "Tao" & numbers$endpoint == "OS", ])

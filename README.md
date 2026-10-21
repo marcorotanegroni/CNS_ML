@@ -55,7 +55,7 @@ conda activate cns_ml
 ```
 
 The notebooks should be run in numerical order. Notebooks `01`, `02`, `03`,
-`06`, and the Supplementary Figure 6 section of `05` can be run using the
+`06`, and the Supplementary Figure 2 section of `05` can be run using the
 processed files included in this repository. Notebook `00` documents the
 complete, computationally intensive preprocessing workflow and uses external
 input paths.
@@ -76,7 +76,7 @@ from the repository root.
 | `code/02_clustering.Rmd` | Patient clustering, cluster composition, overlap of clusters across compendia |
 | `code/03_survival_analysis.Rmd` | Kaplan-Meier curves, stratified Cox models, survival tables |
 | `code/04_machine_learning.Rmd` | Continuous signature prediction and cluster prediction models |
-| `code/05_methylation_batch_effect.Rmd` | Methylation platform harmonization, batch-effect checks, and Supplementary Figure 6 |
+| `code/05_methylation_batch_effect.Rmd` | Methylation platform harmonization, batch-effect checks, and Supplementary Figure 2 |
 | `code/06_fraction_genome_altered.Rmd` | Fraction genome altered in the clustering, survival, and prediction analyses |
 
 | Figure | Code |

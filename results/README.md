@@ -34,13 +34,13 @@ signature in its complete compendium (`positive_q25`, `positive_q50`,
 
 - `cluster_summary.csv`: cluster sizes and mean signature activities
   (`code/scripts/figure5.R`).
-- `supplementary_figure3_counts.csv`: counts shown in Supplementary Figure 3
-  (`code/scripts/supplementary_figure3.R`).
+- `supplementary_figure6_counts.csv`: counts shown in Supplementary Figure 6
+  (`code/scripts/supplementary_figure6.R`).
 
 ## `survival/` (notebook `03`)
 
-- `supplementary_figure5_numbers_at_risk.csv`: numbers at risk of the
-  Kaplan-Meier curves of Figure 6 (`code/scripts/supplementary_figure5.R`).
+- `supplementary_figure7_numbers_at_risk.csv`: numbers at risk of the
+  Kaplan-Meier curves of Figure 6 (`code/scripts/supplementary_figure7.R`).
 
 ## `cluster_prediction/` (notebook `04`)
 

@@ -1,13 +1,13 @@
 # Binary agreement between signatures (Figure 4): composition of the observed
 # agreements (active-active and inactive-inactive shares, active-state
 # Jaccard) and sensitivity to the activity threshold, on the matched tumors
-# with all three compendia (Supplementary Figures 7 and 8).
+# with all three compendia (Supplementary Figures 4 and 5).
 # Source this file to define functions; run it with Rscript from the
 # repository root to write the outputs (run_binary_concordance() in notebook 01):
 #   Rscript code/R/binary_concordance.R
 # Outputs: results/binary_concordance/ (tables, provenance.txt, and
 #          session_info.txt when run with Rscript) and
-#          results/figures/Supplementary_Figure7.* and Supplementary_Figure8.*
+#          results/figures/Supplementary_Figure4.* and Supplementary_Figure5.*
 # No input objects are modified.
 
 bc_high_activity_signatures <- function() {
@@ -351,7 +351,7 @@ run_binary_concordance <- function(
   high <- bc_high_activity_signatures()
   high_order <- high[hclust(dist(t(analyses$original$binary[, high, drop = FALSE])), method = "complete")$order]
   if (make_plots) {
-    # Supplementary Figure 7, page width (6.8 in) at 600 dpi. The patient-state
+    # Supplementary Figure 4, page width (6.8 in) at 600 dpi. The patient-state
     # Jaccard of all 58 signatures is Figure 4a; here its two components for
     # the 58 signatures (a, b) and all three measures for the 12 selected
     # signatures (c-e). Formulas are given in the caption.
@@ -373,7 +373,7 @@ run_binary_concordance <- function(
                      legend.title = ggplot2::element_text(hjust = .5))
     dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
     for (ext in c("png", "tiff", "pdf")) {
-      args <- list(filename = file.path(figure_dir, paste0("Supplementary_Figure7.", ext)),
+      args <- list(filename = file.path(figure_dir, paste0("Supplementary_Figure4.", ext)),
                    plot = components, width = 6.8, height = 6.7, units = "in", bg = "white")
       if (ext != "pdf") args$dpi <- 600
       if (ext == "tiff") args$compression <- "lzw"
@@ -381,7 +381,7 @@ run_binary_concordance <- function(
     }
     sensitivity <- bc_plot_threshold_sensitivity(pairs, principal_ranks, rules)
     for (ext in c("png", "tiff", "pdf")) {
-      args <- list(filename = file.path(figure_dir, paste0("Supplementary_Figure8.", ext)),
+      args <- list(filename = file.path(figure_dir, paste0("Supplementary_Figure5.", ext)),
                    plot = sensitivity, width = 6.8, height = 3.6, units = "in", bg = "white")
       if (ext != "pdf") args$dpi <- 600
       if (ext == "tiff") args$compression <- "lzw"
